@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # Para permitir que React se conecte
+import social_services
 
 # Importa tus modelos Pydantic y tu servicio de LLM
 import schemas
@@ -94,3 +95,35 @@ def adaptar_contenido(titulo: str, contenido: str, red_social: str):
         return {"error": f"Error al generar contenido para {red_social}."}
 
 # --- Fin del archivo llm_service.py ---
+
+# --- CLASE 3: Endpoints de prueba ---
+
+@app.post("/api/test/facebook")
+def test_post_facebook(request: schemas.TestPostRequest):
+    """ Endpoint de prueba para publicar en Facebook """
+    result = social_services.post_to_facebook(
+        text=request.text, 
+        image_url=request.image_url
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.post("/api/test/instagram")
+def test_post_instagram(request: schemas.TestPostRequest):
+    """ Endpoint de prueba para publicar en Instagram """
+    result = social_services.post_to_instagram(
+        text=request.text, 
+        image_url=request.image_url
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.post("/api/test/linkedin")
+def test_post_linkedin(request: schemas.TestPostRequestLinkedIn):
+    """ Endpoint de prueba para publicar en LinkedIn """
+    result = social_services.post_to_linkedin(text=request.text)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

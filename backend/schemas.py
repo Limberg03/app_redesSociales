@@ -9,3 +9,12 @@ class AdaptRequest(BaseModel):
 
 class AdaptResponse(BaseModel):
     data: Dict[str, Any]
+
+
+
+class TestPostRequest(BaseModel):
+    text: str
+    image_url: str # Necesario para FB e IG
+
+class TestPostRequestLinkedIn(BaseModel):
+    text: str
