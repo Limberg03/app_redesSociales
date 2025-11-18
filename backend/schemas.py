@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # Modelo para el JSON que recibimos en el request
 class AdaptRequest(BaseModel):
@@ -14,7 +14,7 @@ class AdaptResponse(BaseModel):
 
 class TestPostRequest(BaseModel):
     text: str
-    image_url: str # Necesario para FB e IG
+    image_url: Optional[str] = None  # Ahora es opcional
 
 class TestPostRequestLinkedIn(BaseModel):
     text: str

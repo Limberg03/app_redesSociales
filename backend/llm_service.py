@@ -21,14 +21,15 @@ model = genai.GenerativeModel(
 
 PROMPTS_POR_RED = {
     "facebook": """
-    Eres un experto en marketing de redes sociales especializado en Facebook.
-    Tu tarea es adaptar una noticia para ser publicada en esta plataforma.
+    Eres un experto en marketing de redes sociales especializado en Facebook para instituciones académicas.
+    Tu tarea es adaptar contenido académico/universitario para ser publicado en esta plataforma.
 
-    Características de Facebook:
-    - Tono: Casual pero informativo. Puede ser formal si el tema lo requiere.
+    Características de Facebook para instituciones académicas:
+    - Tono: Profesional pero cercano, informativo y claro.
     - Formato: Permite texto largo (hasta 63,206 chars).
-    - Hashtags: Opcionales, 2-3 son suficientes.
-    - Emojis: Sí, úsalos para añadir personalidad.
+    - Hashtags: 2-3 hashtags relevantes (siempre incluir #UAGRM si es apropiado).
+    - Emojis: Sí, úsalos moderadamente para añadir personalidad (📚 🎓 📅 ✅ 🎯).
+    - Enfoque: Información clara y útil para estudiantes.
 
     Contenido a adaptar:
     - Título: {titulo}
@@ -36,21 +37,21 @@ PROMPTS_POR_RED = {
 
     Debes devolver un JSON con la siguiente estructura exacta:
     {{
-      "text": "El texto adaptado para Facebook...",
-      "hashtags": ["#Hashtag1", "#Hashtag2"],
+      "text": "El texto adaptado para Facebook con estilo académico...",
+      "hashtags": ["#UAGRM", "#Universidad"],
       "character_count": 123
     }}
     """,
     "instagram": """
-    Eres un experto en marketing de redes sociales especializado en Instagram.
-    Tu tarea es adaptar una noticia para ser publicada en esta plataforma.
+    Eres un experto en marketing de redes sociales especializado en Instagram para instituciones académicas.
+    Tu tarea es adaptar contenido académico/universitario para ser publicado en esta plataforma.
 
-    Características de Instagram:
-    - Tono: Visual, casual y atractivo.
-    - Formato: Texto corto (hasta 2,200 chars), lo más importante va primero.
-    - Hashtags: Muy importantes, 5-10 son comunes.
-    - Emojis: Sí, úsalos generosamente.
-    - Especial: Sugiere un prompt para una imagen (IA generativa).
+    Características de Instagram para instituciones académicas:
+    - Tono: Visual, dinámico, juvenil pero profesional.
+    - Formato: Texto corto y directo (hasta 2,200 chars), lo más importante va primero.
+    - Hashtags: Muy importantes, 5-8 hashtags (siempre incluir #UAGRM y hashtags académicos).
+    - Emojis: Sí, úsalos generosamente pero con buen gusto (📚 🎓 ✨ 🚀 📅 🎯).
+    - Enfoque: Captar atención rápidamente, estilo más visual y energético.
 
     Contenido a adaptar:
     - Título: {titulo}
@@ -58,10 +59,10 @@ PROMPTS_POR_RED = {
 
     Debes devolver un JSON con la siguiente estructura exacta:
     {{
-      "text": "El texto adaptado para Instagram...",
-      "hashtags": ["#Hashtag1", "#Hashtag2", "#Hashtag3"],
+      "text": "El texto adaptado para Instagram con estilo académico dinámico...",
+      "hashtags": ["#UAGRM", "#Universidad", "#EstudiantesUAGRM", "#VidaUniversitaria", "#Educacion"],
       "character_count": 123,
-      "suggested_image_prompt": "Un prompt de imagen que describa el contenido"
+      "suggested_image_prompt": "Un prompt de imagen que describa el contenido académico"
     }}
     """,
     "linkedin": """
@@ -135,6 +136,64 @@ PROMPTS_POR_RED = {
 
 
 import json
+import httpx
+import os
+
+def validar_contenido_academico(texto: str) -> dict:
+    """
+    Valida si el contenido es apropiado para publicación académica/universitaria.
+    Retorna un diccionario con el resultado de la validación.
+    """
+    prompt_validacion = f"""
+    Eres un moderador de contenido para redes sociales de una universidad.
+    Tu tarea es determinar si el siguiente contenido es apropiado para publicar 
+    en las redes sociales oficiales de una universidad.
+    
+    Contenido apropiado incluye:
+    - Fechas académicas (inscripciones, retiros, exámenes)
+    - Eventos académicos (conferencias, seminarios, talleres)
+    - Convocatorias (becas, programas, concursos académicos)
+    - Logros estudiantiles o de investigación
+    - Información sobre carreras y programas
+    - Actividades culturales o deportivas universitarias
+    - Noticias institucionales de la universidad
+    
+    Contenido NO apropiado incluye:
+    - Noticias de crimen o violencia
+    - Chismes o contenido trivial
+    - Promociones comerciales no relacionadas
+    - Contenido político no académico
+    - Cualquier tema no relacionado con educación/universidad
+    
+    Contenido a evaluar: "{texto}"
+    
+    Debes responder ÚNICAMENTE con un JSON en el siguiente formato:
+    {{
+      "es_academico": true o false,
+      "razon": "Breve explicación de por qué es o no académico"
+    }}
+    
+    NO incluyas texto adicional, SOLO el JSON.
+    """
+    
+    try:
+        response = model.generate_content(prompt_validacion)
+        response_text = response.text.strip()
+        
+        # Limpiar markdown si existe
+        response_text = response_text.replace('```json\n', '').replace('```\n', '').replace('```', '').strip()
+        
+        resultado = json.loads(response_text)
+        return resultado
+        
+    except Exception as e:
+        print(f"Error al validar contenido académico: {e}")
+        # En caso de error, permitimos el contenido (fail-safe)
+        return {
+            "es_academico": True,
+            "razon": "Error en validación, se permite por defecto"
+        }
+
 
 def adaptar_contenido(titulo: str, contenido: str, red_social: str):
     """
@@ -155,11 +214,90 @@ def adaptar_contenido(titulo: str, contenido: str, red_social: str):
         # 3. Llamar a la API de Gemini
         response = model.generate_content(prompt_final)
         
-        # 4. Devolver la respuesta (que ya viene en JSON gracias a GenerationConfig)
-        # El texto de la respuesta es un string JSON, necesitamos parsearlo
-        response_json = json.loads(response.text)
+        # 4. Parsear la respuesta
+        response_text = response.text.strip()
+        
+        # Limpiar markdown si existe
+        response_text = response_text.replace('```json\n', '').replace('```\n', '').replace('```', '').strip()
+        
+        # Parsear JSON
+        response_json = json.loads(response_text)
+        
+        # 5. Si la respuesta es una lista, tomar el primer elemento
+        if isinstance(response_json, list):
+            if len(response_json) > 0:
+                response_json = response_json[0]
+            else:
+                return {"error": "Respuesta vacía del LLM"}
+        
+        # 6. Verificar que sea un diccionario válido
+        if not isinstance(response_json, dict):
+            return {"error": f"Formato de respuesta inválido: {type(response_json)}"}
+        
         return response_json
         
+    except json.JSONDecodeError as e:
+        print(f"Error al parsear JSON de Gemini para {red_social}: {e}")
+        print(f"Respuesta recibida: {response.text[:200]}")
+        return {"error": f"Error al parsear respuesta JSON: {str(e)}"}
     except Exception as e:
         print(f"Error al llamar a Gemini para {red_social}: {e}")
         return {"error": f"Error al generar contenido para {red_social}."}
+
+
+def generar_imagen_ia(prompt_imagen: str) -> str:
+    """
+    Genera una imagen usando Pollinations.ai y la sube a Imgur
+    Retorna la URL permanente de Imgur
+    """
+    try:
+        # 1. Generar imagen con Pollinations
+        prompt_limpio = prompt_imagen[:300].replace(" ", "%20")
+        url_pollinations = f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"
+        
+        print(f"🎨 Generando imagen con Pollinations...")
+        
+        # 2. Descargar la imagen generada
+        response = httpx.get(url_pollinations, timeout=30.0)
+        response.raise_for_status()
+        imagen_bytes = response.content
+        
+        print(f"✅ Imagen generada ({len(imagen_bytes)} bytes)")
+        
+        # 3. Subir a Imgur (servicio gratuito que SÍ funciona con Instagram)
+        imgur_client_id = "546c25a59c58ad7"  # Client ID público de Imgur
+        
+        imgur_headers = {
+            "Authorization": f"Client-ID {imgur_client_id}"
+        }
+        
+        imgur_data = {
+            "image": imagen_bytes,
+            "type": "file"
+        }
+        
+        print("📤 Subiendo imagen a Imgur...")
+        imgur_response = httpx.post(
+            "https://api.imgur.com/3/upload",
+            headers=imgur_headers,
+            files={"image": imagen_bytes},
+            timeout=30.0
+        )
+        imgur_response.raise_for_status()
+        
+        imgur_result = imgur_response.json()
+        
+        if imgur_result["success"]:
+            url_imgur = imgur_result["data"]["link"]
+            print(f"✅ Imagen subida a Imgur: {url_imgur}")
+            return url_imgur
+        else:
+            print("❌ Error al subir a Imgur")
+            return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"
+        
+    except httpx.TimeoutException:
+        print("⏱️ Timeout al generar imagen, usando imagen por defecto")
+        return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"
+    except Exception as e:
+        print(f"❌ Error al generar imagen: {e}")
+        return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"

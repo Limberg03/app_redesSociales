@@ -8,21 +8,33 @@ load_dotenv()
 
 META_TOKEN = os.getenv("META_ACCESS_TOKEN")
 PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
-IG_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID")  # ← NUEVO: Agrega esto a tu .env
+IG_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID")
 
 META_GRAPH_URL = "https://graph.facebook.com/v19.0"
 
 
-def post_to_facebook(text: str, image_url: str):
+def post_to_facebook(text: str, image_url: str = None):
     """
-    Publica una FOTO con texto en una Página de Facebook.
+    Publica en Facebook.
+    - Si image_url está presente: publica foto con texto
+    - Si image_url es None: publica solo texto
     """
-    post_url = f"{META_GRAPH_URL}/{PAGE_ID}/photos"
-    payload = {
-        'caption': text,
-        'url': image_url,
-        'access_token': META_TOKEN
-    }
+    
+    if image_url:
+        # Publicar FOTO con texto
+        post_url = f"{META_GRAPH_URL}/{PAGE_ID}/photos"
+        payload = {
+            'caption': text,
+            'url': image_url,
+            'access_token': META_TOKEN
+        }
+    else:
+        # Publicar SOLO TEXTO
+        post_url = f"{META_GRAPH_URL}/{PAGE_ID}/feed"
+        payload = {
+            'message': text,
+            'access_token': META_TOKEN
+        }
     
     try:
         logging.info(f"Publicando en Facebook: {text[:20]}...")
@@ -30,7 +42,7 @@ def post_to_facebook(text: str, image_url: str):
         response.raise_for_status() 
         
         result = response.json()
-        logging.info(f"✅ Publicado en Facebook. Post ID: {result['id']}")
+        logging.info(f"✅ Publicado en Facebook. Post ID: {result.get('id', result.get('post_id', 'N/A'))}")
         return result
         
     except httpx.HTTPStatusError as e:
@@ -45,6 +57,7 @@ def post_to_instagram(text: str, image_url: str):
     """
     Publica una FOTO con texto en Instagram.
     Flujo de 2 pasos: crear contenedor → publicar
+    Luego obtiene el permalink real.
     """
     
     # VALIDACIÓN IMPORTANTE
@@ -55,13 +68,16 @@ def post_to_instagram(text: str, image_url: str):
                      "Ejecuta verify_instagram.py para obtenerlo"
         }
     
+    if not image_url:
+        logging.error("❌ Instagram requiere una imagen")
+        return {"error": "Instagram requiere una URL de imagen"}
+    
     logging.info(f"Publicando en Instagram: {text[:20]}...")
     
     try:
         # --- PASO 1: Crear el "Contenedor" de la imagen ---
         logging.info("Instagram - Paso 1: Creando contenedor...")
         
-        # ← CAMBIO CRÍTICO: Usar IG_ACCOUNT_ID en lugar de PAGE_ID
         container_url = f"{META_GRAPH_URL}/{IG_ACCOUNT_ID}/media"
         
         container_payload = {
@@ -70,7 +86,7 @@ def post_to_instagram(text: str, image_url: str):
             'access_token': META_TOKEN
         }
         
-        response_container = httpx.post(container_url, data=container_payload)
+        response_container = httpx.post(container_url, data=container_payload, timeout=60.0)
         response_container.raise_for_status()
         container_id = response_container.json()['id']
         logging.info(f"✅ Contenedor creado: {container_id}")
@@ -78,7 +94,6 @@ def post_to_instagram(text: str, image_url: str):
         # --- PASO 2: Publicar el Contenedor ---
         logging.info("Instagram - Paso 2: Publicando contenedor...")
         
-        # ← CAMBIO CRÍTICO: Usar IG_ACCOUNT_ID en lugar de PAGE_ID
         publish_url = f"{META_GRAPH_URL}/{IG_ACCOUNT_ID}/media_publish"
         
         publish_payload = {
@@ -86,18 +101,38 @@ def post_to_instagram(text: str, image_url: str):
             'access_token': META_TOKEN
         }
         
-        response_publish = httpx.post(publish_url, data=publish_payload)
+        response_publish = httpx.post(publish_url, data=publish_payload, timeout=60.0)
         response_publish.raise_for_status()
         result = response_publish.json()
+        media_id = result['id']
         
-        logging.info(f"✅ Publicado en Instagram. Media ID: {result['id']}")
+        logging.info(f"✅ Publicado en Instagram. Media ID: {media_id}")
+        
+        # --- PASO 3: Obtener el permalink ---
+        logging.info("Instagram - Paso 3: Obteniendo permalink...")
+        
+        permalink_url = f"{META_GRAPH_URL}/{media_id}"
+        permalink_params = {
+            'fields': 'id,permalink',
+            'access_token': META_TOKEN
+        }
+        
+        response_permalink = httpx.get(permalink_url, params=permalink_params, timeout=10.0)
+        response_permalink.raise_for_status()
+        permalink_data = response_permalink.json()
+        
+        permalink = permalink_data.get('permalink', None)
+        logging.info(f"✅ Permalink obtenido: {permalink}")
+        
+        # Agregar permalink al resultado
+        result['permalink'] = permalink
+        
         return result
 
     except httpx.HTTPStatusError as e:
         error_data = e.response.json()
         logging.error(f"❌ Error al publicar en Instagram: {error_data}")
         
-        # Mensajes de ayuda según el error
         if error_data.get('error', {}).get('error_subcode') == 33:
             logging.error("💡 Este error indica que:")
             logging.error("   1. La página no tiene Instagram conectado")
