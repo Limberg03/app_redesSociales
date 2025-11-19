@@ -21,7 +21,6 @@ def post_to_facebook(text: str, image_url: str = None):
     """
     
     if image_url:
-        # Publicar FOTO con texto
         post_url = f"{META_GRAPH_URL}/{PAGE_ID}/photos"
         payload = {
             'caption': text,
@@ -29,7 +28,6 @@ def post_to_facebook(text: str, image_url: str = None):
             'access_token': META_TOKEN
         }
     else:
-        # Publicar SOLO TEXTO
         post_url = f"{META_GRAPH_URL}/{PAGE_ID}/feed"
         payload = {
             'message': text,

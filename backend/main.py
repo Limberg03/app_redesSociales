@@ -58,7 +58,6 @@ def test_post_facebook(request: schemas.TestPostRequest):
     - SOLO TEXTO (sin imagen)
     """
     
-    # 1. VALIDAR que el contenido sea académico
     print("🔍 Validando contenido académico...")
     validacion = llm_service.validar_contenido_academico(request.text)
     
@@ -73,7 +72,6 @@ def test_post_facebook(request: schemas.TestPostRequest):
     
     print(f"✅ Contenido validado como académico: {validacion.get('razon')}")
     
-    # 2. Adaptar el contenido
     print("🔄 Adaptando contenido para Facebook...")
     adaptacion = llm_service.adaptar_contenido(
         titulo=request.text[:50],
@@ -84,7 +82,6 @@ def test_post_facebook(request: schemas.TestPostRequest):
     if "error" in adaptacion:
         raise HTTPException(status_code=400, detail=adaptacion["error"])
     
-    # 3. Preparar texto adaptado con hashtags
     texto_adaptado = adaptacion.get("text", request.text)
     
     if "hashtags" in adaptacion and adaptacion["hashtags"]:
@@ -93,7 +90,6 @@ def test_post_facebook(request: schemas.TestPostRequest):
     
     print(f"✅ Texto adaptado: {texto_adaptado[:100]}...")
     
-    # 4. Publicar en Facebook (SOLO TEXTO)
     result = social_services.post_to_facebook(
         text=texto_adaptado,
         image_url=None  # SIN IMAGEN

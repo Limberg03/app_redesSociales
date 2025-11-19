@@ -107,7 +107,7 @@ function App() {
                   checked={redSocial === 'facebook'}
                   onChange={(e) => setRedSocial(e.target.value as 'facebook')}
                 />
-                <span>📘 Facebook</span>
+                <span> Facebook</span>
               </label>
               <label className="radio-label">
                 <input
@@ -116,7 +116,7 @@ function App() {
                   checked={redSocial === 'instagram'}
                   onChange={(e) => setRedSocial(e.target.value as 'instagram')}
                 />
-                <span>📸 Instagram</span>
+                <span> Instagram</span>
               </label>
             </div>
           </div>
@@ -130,9 +130,7 @@ function App() {
               placeholder="Ej: La UAGRM habilitó el retiro de materias hasta el 30 de noviembre"
               rows={5}
             />
-            <small className="hint">
-              Solo se acepta contenido académico (fechas, eventos, convocatorias, etc.)
-            </small>
+          
           </div>
 
           <button
