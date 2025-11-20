@@ -43,7 +43,9 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [redSocial, setRedSocial] = useState<'facebook' | 'instagram'>('facebook');
+  
+  // 1. Actualizamos el tipo para incluir 'linkedin'
+  const [redSocial, setRedSocial] = useState<'facebook' | 'instagram' | 'linkedin'>('facebook');
 
   const publicar = async () => {
     if (!texto.trim()) {
@@ -56,9 +58,15 @@ function App() {
     setResultado(null);
 
     try {
-      const endpoint = redSocial === 'facebook' 
-        ? 'http://127.0.0.1:8000/api/test/facebook'
-        : 'http://127.0.0.1:8000/api/test/instagram';
+      // 2. Lógica para seleccionar el endpoint correcto
+      let endpoint = '';
+      if (redSocial === 'facebook') {
+        endpoint = 'http://127.0.0.1:8000/api/test/facebook';
+      } else if (redSocial === 'instagram') {
+        endpoint = 'http://127.0.0.1:8000/api/test/instagram';
+      } else if (redSocial === 'linkedin') {
+        endpoint = 'http://127.0.0.1:8000/api/test/linkedin';
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -118,6 +126,16 @@ function App() {
                 />
                 <span> Instagram</span>
               </label>
+              {/* 3. Agregamos la opción visual de LinkedIn */}
+              <label className="radio-label">
+                <input
+                  type="radio"
+                  value="linkedin"
+                  checked={redSocial === 'linkedin'}
+                  onChange={(e) => setRedSocial(e.target.value as 'linkedin')}
+                />
+                <span> LinkedIn</span>
+              </label>
             </div>
           </div>
 
@@ -130,7 +148,6 @@ function App() {
               placeholder="Ej: La UAGRM habilitó el retiro de materias hasta el 30 de noviembre"
               rows={5}
             />
-          
           </div>
 
           <button
@@ -138,7 +155,7 @@ function App() {
             onClick={publicar}
             disabled={loading}
           >
-            {loading ? '⏳ Publicando...' : '🚀 Publicar'}
+            {loading ? '⏳ Publicando...' : `🚀 Publicar en ${redSocial.charAt(0).toUpperCase() + redSocial.slice(1)}`}
           </button>
         </div>
 
@@ -159,7 +176,7 @@ function App() {
             </div>
 
             <div className="result-section">
-              <h3>✨ Texto Adaptado</h3>
+              <h3>✨ Texto Adaptado ({redSocial})</h3>
               <div className="texto-adaptado">
                 {resultado.adaptacion.text}
               </div>

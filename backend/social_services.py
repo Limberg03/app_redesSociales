@@ -155,7 +155,7 @@ def get_linkedin_user_urn():
         response = httpx.get(profile_url, headers=headers)
         response.raise_for_status()
         return response.json()['id']
-    except httpx.HTTPStatusError as e:
+    except httpx.HTTPError as e:
         logging.error(f"Error al obtener URN de LinkedIn: {e.response.json()}")
         return None
 
@@ -180,7 +180,7 @@ def post_to_linkedin(text: str):
     }
     
     payload = {
-        "author": author_urn,
+        "author": f"urn:li:person:{author_urn}",
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
@@ -202,7 +202,7 @@ def post_to_linkedin(text: str):
         logging.info("✅ Publicado en LinkedIn con éxito.")
         return response.json()
         
-    except httpx.HTTPStatusError as e:
+    except httpx.HTTPError as e:
         logging.error(f"❌ Error al publicar en LinkedIn: {e.response.json()}")
         return {"error": f"Error de API: {e.response.json()}"}
     except Exception as e:

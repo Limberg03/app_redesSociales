@@ -195,12 +195,67 @@ def test_post_instagram(request: schemas.TestPostRequest):
 
 
 @app.post("/api/test/linkedin")
-def test_post_linkedin(request: schemas.TestPostRequestLinkedIn):
+def test_post_linkedin(request: schemas.TestPostRequest):
     """ 
     Endpoint para publicar en LinkedIn 
-    (SIN adaptación por ahora)
+    - VALIDACIÓN de contenido académico
+    - ADAPTACIÓN automática (Tono profesional, sin emojis excesivos)
+    - SOLO TEXTO (formato artículo/post)
     """
-    result = social_services.post_to_linkedin(text=request.text)
+    
+    # 1. VALIDAR contenido académico
+    print("🔍 [LinkedIn] Validando contenido académico...")
+    validacion = llm_service.validar_contenido_academico(request.text)
+    
+    if not validacion.get("es_academico", False):
+        raise HTTPException(
+            status_code=400, 
+            detail={
+                "error": "contenido_no_academico",
+                "mensaje": "❌ Contenido no apto para LinkedIn académico. " + validacion.get('razon', '')
+            }
+        )
+    
+    # 2. ADAPTAR contenido (Usa el prompt específico de LinkedIn en llm_service)
+    print("🔄 [LinkedIn] Adaptando contenido con tono profesional...")
+    adaptacion = llm_service.adaptar_contenido(
+        titulo=request.text[:50],
+        contenido=request.text,
+        red_social="linkedin"
+    )
+    
+    if "error" in adaptacion:
+        raise HTTPException(status_code=400, detail=adaptacion["error"])
+    
+    # 3. Preparar texto final
+    texto_adaptado = adaptacion.get("text", request.text)
+    hashtags = adaptacion.get("hashtags", [])
+    
+    # LinkedIn prefiere los hashtags abajo, separados
+    if hashtags:
+        hashtags_str = " ".join(hashtags)
+        texto_adaptado = f"{texto_adaptado}\n\n{hashtags_str}"
+    
+    print(f"✅ Texto LinkedIn: {texto_adaptado[:50]}...")
+    
+    # 4. PUBLICAR
+    result = social_services.post_to_linkedin(text=texto_adaptado)
+    
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
-    return result
+    
+    # 5. Obtener Link (LinkedIn devuelve un URN tipo urn:li:share:12345)
+    post_urn = result.get("id", "") # ej: urn:li:share:7123456789
+    post_id = post_urn.split(":")[-1] if ":" in post_urn else post_urn
+    link_linkedin = f"https://www.linkedin.com/feed/update/{post_urn}" if post_urn else None
+
+    return {
+        "validacion": validacion,
+        "adaptacion": adaptacion,
+        "publicacion": {
+            "id": post_id,
+            "link": link_linkedin,
+            "raw": result
+        },
+        "mensaje": "✅ Publicado en LinkedIn (Tono Profesional)"
+    }
