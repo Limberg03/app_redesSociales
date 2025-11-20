@@ -143,34 +143,69 @@ def post_to_instagram(text: str, image_url: str):
         logging.error(f"❌ Error inesperado en Instagram: {e}")
         return {"error": f"Error inesperado: {str(e)}"}
 
-def get_linkedin_user_urn():
+
+def get_linkedin_user_info():
     """
-    Helper: Para publicar en LinkedIn, primero necesitas tu "URN" (ID de persona).
+    🆕 MÉTODO CORREGIDO: Usa el nuevo endpoint /v2/userinfo
+    Requiere que tu token tenga los scopes: openid, profile
+    
+    Retorna el 'sub' (identificador único del usuario)
     """
     LINKEDIN_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
-    profile_url = "https://api.linkedin.com/v2/me"
-    headers = {'Authorization': f'Bearer {LINKEDIN_TOKEN}'}
+    
+    # 🔥 NUEVO ENDPOINT: /v2/userinfo en lugar de /v2/me
+    userinfo_url = "https://api.linkedin.com/v2/userinfo"
+    headers = {
+        'Authorization': f'Bearer {LINKEDIN_TOKEN}'
+    }
     
     try:
-        response = httpx.get(profile_url, headers=headers)
+        logging.info("LinkedIn - Obteniendo información de usuario con /v2/userinfo...")
+        response = httpx.get(userinfo_url, headers=headers, timeout=10.0)
         response.raise_for_status()
-        return response.json()['id']
+        
+        user_data = response.json()
+        # El nuevo endpoint retorna 'sub' en lugar de 'id'
+        user_sub = user_data.get('sub')
+        
+        logging.info(f"✅ Usuario LinkedIn obtenido: {user_data.get('name')} (sub: {user_sub})")
+        return user_sub
+        
     except httpx.HTTPError as e:
-        logging.error(f"Error al obtener URN de LinkedIn: {e.response.json()}")
+        # Cambio: HTTPStatusError -> HTTPError (compatible con versiones antiguas)
+        try:
+            error_data = e.response.json()
+            logging.error(f"❌ Error al obtener URN de LinkedIn: {error_data}")
+        except:
+            logging.error(f"❌ Error HTTP: {e}")
+        
+        logging.error("💡 Posibles causas:")
+        logging.error("   1. Tu token no tiene el scope 'openid' o 'profile'")
+        logging.error("   2. El token ha expirado (duran 60 días)")
+        logging.error("   3. Necesitas regenerar el token con los scopes correctos")
+        logging.error("   4. Verifica que la URL sea correcta: /v2/userinfo")
+        return None
+    except Exception as e:
+        logging.error(f"❌ Error inesperado: {e}")
         return None
 
 
 def post_to_linkedin(text: str):
     """
-    Publica un POST de solo TEXTO en LinkedIn.
+    🆕 MÉTODO MEJORADO: Publica un POST de solo TEXTO en LinkedIn.
+    Ahora usa el nuevo método get_linkedin_user_info()
     """
     LINKEDIN_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
     
     logging.info(f"Publicando en LinkedIn: {text[:20]}...")
     
-    author_urn = get_linkedin_user_urn()
-    if not author_urn:
-        return {"error": "No se pudo obtener el URN de LinkedIn. Revisa tu token."}
+    # Obtener el identificador del usuario
+    user_sub = get_linkedin_user_info()
+    if not user_sub:
+        return {
+            "error": "No se pudo obtener el identificador de LinkedIn. "
+                     "Verifica que tu token tenga los scopes 'openid' y 'profile'."
+        }
     
     post_url = "https://api.linkedin.com/v2/ugcPosts"
     headers = {
@@ -179,8 +214,9 @@ def post_to_linkedin(text: str):
         'X-Restli-Protocol-Version': '2.0.0'
     }
     
+    # 🔥 USAMOS 'sub' en lugar de un URN completo
     payload = {
-        "author": f"urn:li:person:{author_urn}",
+        "author": f"urn:li:person:{user_sub}",
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
@@ -196,15 +232,16 @@ def post_to_linkedin(text: str):
     }
     
     try:
-        response = httpx.post(post_url, json=payload, headers=headers)
+        response = httpx.post(post_url, json=payload, headers=headers, timeout=30.0)
         response.raise_for_status()
         
         logging.info("✅ Publicado en LinkedIn con éxito.")
         return response.json()
         
-    except httpx.HTTPError as e:
-        logging.error(f"❌ Error al publicar en LinkedIn: {e.response.json()}")
-        return {"error": f"Error de API: {e.response.json()}"}
+    except httpx.HTTPStatusError as e:
+        error_data = e.response.json()
+        logging.error(f"❌ Error al publicar en LinkedIn: {error_data}")
+        return {"error": f"Error de API: {error_data}"}
     except Exception as e:
         logging.error(f"❌ Error inesperado en LinkedIn: {e}")
         return {"error": f"Error inesperado: {str(e)}"}
