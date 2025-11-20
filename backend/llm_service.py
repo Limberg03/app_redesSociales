@@ -110,15 +110,17 @@ PROMPTS_POR_RED = {
       "video_hook": "La primera frase que dirías en el video para captar la atención"
     }}
     """,
-    "whatsapp": """
-    Eres un experto en comunicación directa especializado en WhatsApp.
-    Tu tarea es adaptar una noticia para ser enviada por este canal.
+       "whatsapp": """
+    Eres un experto en comunicación directa especializado en WhatsApp para instituciones académicas.
+    Tu tarea es adaptar contenido académico/universitario para ser enviado por este canal.
 
-    Características de WhatsApp:
-    - Tono: Directo, conversacional y cercano.
-    - Formato: Texto libre, usa saltos de línea para facilitar la lectura.
-    - Hashtags: Raros o ninguno.
-    - Emojis: Sí, como en una conversación normal.
+    Características de WhatsApp para instituciones académicas:
+    - Tono: Directo, conversacional, cercano y amigable.
+    - Formato: Texto libre con saltos de línea para facilitar la lectura.
+    - Hashtags: Raros o ninguno (WhatsApp no usa hashtags).
+    - Emojis: Sí, como en una conversación normal (📚 ✅ 📅 👋 📢).
+    - Enfoque: Mensaje personal y directo, como si hablaras con un estudiante.
+    - Estructura: Saludo → Información → Despedida/Call to action
 
     Contenido a adaptar:
     - Título: {titulo}
@@ -126,11 +128,17 @@ PROMPTS_POR_RED = {
 
     Debes devolver un JSON con la siguiente estructura exacta:
     {{
-      "text": "El texto adaptado para WhatsApp... Hola! 👋 Te cuento que...",
+      "text": "Hola! 👋\n\nTe cuento que...\n\nSi tienes dudas, escríbenos!",
       "hashtags": [],
       "character_count": 123,
       "format": "conversational"
     }}
+    
+    IMPORTANTE: 
+    - Usa saltos de línea (\\n) para organizar el mensaje
+    - Mantén un tono amigable pero profesional
+    - Incluye emojis moderadamente
+    - NO uses hashtags
     """
 }
 
@@ -142,28 +150,43 @@ import os
 def validar_contenido_academico(texto: str) -> dict:
     """
     Valida si el contenido es apropiado para publicación académica/universitaria.
-    Retorna un diccionario con el resultado de la validación.
+    VERSIÓN MEJORADA: Acepta contenido relacionado con UAGRM incluso si es sensible.
     """
     prompt_validacion = f"""
-    Eres un moderador de contenido para redes sociales de una universidad.
-    Tu tarea es determinar si el siguiente contenido es apropiado para publicar 
-    en las redes sociales oficiales de una universidad.
+    Eres un moderador de contenido para redes sociales de la UAGRM (Universidad Autónoma Gabriel René Moreno).
+    Tu tarea es determinar si el siguiente contenido es apropiado para publicar en las redes sociales oficiales de la universidad.
     
-    Contenido apropiado incluye:
-    - Fechas académicas (inscripciones, retiros, exámenes)
-    - Eventos académicos (conferencias, seminarios, talleres)
-    - Convocatorias (becas, programas, concursos académicos)
-    - Logros estudiantiles o de investigación
-    - Información sobre carreras y programas
-    - Actividades culturales o deportivas universitarias
-    - Noticias institucionales de la universidad
+    ⭐ REGLA CRÍTICA: Si el contenido menciona "UAGRM" o cualquiera de sus facultades (FICCT, FIA, FCS, FACICO, Medicina, Derecho, Economía, etc.), 
+    el contenido DEBE ser considerado académico, ya que se refiere directamente a la institución universitaria.
     
-    Contenido NO apropiado incluye:
-    - Noticias de crimen o violencia
-    - Chismes o contenido trivial
-    - Promociones comerciales no relacionadas
-    - Contenido político no académico
-    - Cualquier tema no relacionado con educación/universidad
+    Contenido APROPIADO y VÁLIDO para publicación:
+    ✅ Cualquier tema que mencione UAGRM o sus facultades
+    ✅ Fechas académicas (inscripciones, retiros, exámenes, defensa de tesis)
+    ✅ Eventos académicos (conferencias, seminarios, talleres, congresos, ferias)
+    ✅ Convocatorias (becas, programas, concursos académicos, contrataciones docentes)
+    ✅ Logros estudiantiles, de investigación o institucionales
+    ✅ Información sobre carreras, programas académicos, nuevas ofertas
+    ✅ Actividades culturales, deportivas o sociales universitarias
+    ✅ Noticias institucionales de la universidad
+    ✅ Denuncias, conflictos o temas sensibles RELACIONADOS con la UAGRM o su comunidad
+    ✅ Comunicados oficiales, pronunciamientos institucionales
+    ✅ Procesos administrativos universitarios
+    ✅ Huelgas, protestas, manifestaciones estudiantiles o docentes
+    ✅ Problemas de infraestructura, presupuesto, gestión universitaria
+    ✅ Casos de acoso, discriminación, injusticias en el campus
+    
+    Contenido NO apropiado (solo si NO está relacionado con UAGRM):
+    ❌ Noticias de crimen o violencia que no involucran a la universidad
+    ❌ Chismes de famosos o contenido de espectáculos sin relación académica
+    ❌ Promociones comerciales externas sin vínculo educativo
+    ❌ Contenido político partidista ajeno a la universidad
+    ❌ Temas completamente ajenos a educación y universidad
+    
+    IMPORTANTE: 
+    - Los temas sensibles (denuncias, conflictos laborales, protestas estudiantiles) son VÁLIDOS si están relacionados con UAGRM
+    - La universidad puede y debe comunicar tanto logros como problemas institucionales
+    - NO rechaces contenido solo porque sea controversial o sensible si es relevante para la comunidad universitaria
+    - Si el texto menciona "docentes de la Universidad", "estudiantes de UAGRM", "FICCT", etc., ES CONTENIDO ACADÉMICO VÁLIDO
     
     Contenido a evaluar: "{texto}"
     

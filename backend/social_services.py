@@ -2,6 +2,7 @@ import httpx
 import os
 import logging
 from dotenv import load_dotenv
+from twilio.rest import Client
 
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
@@ -171,8 +172,8 @@ def get_linkedin_user_info():
         logging.info(f"✅ Usuario LinkedIn obtenido: {user_data.get('name')} (sub: {user_sub})")
         return user_sub
         
-    except httpx.HTTPError as e:
-        # Cambio: HTTPStatusError -> HTTPError (compatible con versiones antiguas)
+    except httpx.HTTPStatusError as e:
+        # CORRECCIÓN: Capturar HTTPStatusError correctamente
         try:
             error_data = e.response.json()
             logging.error(f"❌ Error al obtener URN de LinkedIn: {error_data}")
@@ -245,3 +246,101 @@ def post_to_linkedin(text: str):
     except Exception as e:
         logging.error(f"❌ Error inesperado en LinkedIn: {e}")
         return {"error": f"Error inesperado: {str(e)}"}
+
+
+
+def send_whatsapp_message(text: str, to_number: str = None):
+    """
+    Envía un mensaje de WhatsApp usando Twilio Sandbox.
+    
+    Args:
+        text: El mensaje a enviar
+        to_number: Número de destino (formato: +591XXXXXXXXX)
+                   Si no se proporciona, usa YOUR_WHATSAPP_NUMBER del .env
+    
+    Returns:
+        dict: Resultado de la operación
+    """
+    
+    TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+    TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+    TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
+    DEFAULT_TO_NUMBER = os.getenv("YOUR_WHATSAPP_NUMBER")
+    
+    # Validaciones
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
+        logging.error("❌ Credenciales de Twilio no configuradas en .env")
+        return {
+            "error": "Twilio no configurado. Verifica TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN en .env"
+        }
+    
+    if not TWILIO_WHATSAPP_NUMBER:
+        logging.error("❌ TWILIO_WHATSAPP_NUMBER no configurado en .env")
+        return {
+            "error": "Número de WhatsApp de Twilio no configurado"
+        }
+    
+    # Determinar número de destino
+    recipient = to_number or DEFAULT_TO_NUMBER
+    
+    if not recipient:
+        logging.error("❌ No se especificó número de destino")
+        return {
+            "error": "Número de destino no especificado. Usa 'to_number' o configura YOUR_WHATSAPP_NUMBER"
+        }
+    
+    # Asegurar formato whatsapp:
+    from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_NUMBER}"
+    to_whatsapp = f"whatsapp:{recipient}" if not recipient.startswith("whatsapp:") else recipient
+    
+    try:
+        logging.info(f"Enviando WhatsApp a {to_whatsapp}...")
+        
+        # Inicializar cliente de Twilio
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        
+        # Enviar mensaje
+        message = client.messages.create(
+            body=text,
+            from_=from_whatsapp,
+            to=to_whatsapp
+        )
+        
+        logging.info(f"✅ Mensaje enviado. SID: {message.sid}")
+        logging.info(f"   Estado: {message.status}")
+        
+        return {
+            "id": message.sid,
+            "status": message.status,
+            "to": recipient,
+            "message": "Mensaje enviado correctamente"
+        }
+        
+    except Exception as e:
+        logging.error(f"❌ Error al enviar WhatsApp: {e}")
+        
+        # Errores comunes
+        error_str = str(e)
+        
+        if "not a valid phone number" in error_str:
+            logging.error("💡 Verifica que el número tenga el formato correcto: +591XXXXXXXXX")
+        elif "not verified" in error_str or "sandbox" in error_str.lower():
+            logging.error("💡 Asegúrate de que:")
+            logging.error("   1. Has enviado 'join <código>' al sandbox de Twilio")
+            logging.error("   2. Tu número está conectado al sandbox")
+        elif "authenticate" in error_str.lower():
+            logging.error("💡 Verifica tus credenciales TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN")
+        
+        return {
+            "error": f"Error al enviar WhatsApp: {str(e)}"
+        }
+
+
+
+
+
+
+
+
+
+

@@ -259,3 +259,69 @@ def test_post_linkedin(request: schemas.TestPostRequest):
         },
         "mensaje": "✅ Publicado en LinkedIn (Tono Profesional)"
     }
+
+@app.post("/api/test/whatsapp")
+def test_send_whatsapp(request: schemas.TestPostRequest):
+    """ 
+    Endpoint para enviar mensaje por WhatsApp
+    - VALIDACIÓN de contenido académico
+    - ADAPTACIÓN automática (Tono conversacional)
+    - ENVÍO por Twilio
+    """
+    
+    # 1. VALIDAR contenido académico
+    print("🔍 [WhatsApp] Validando contenido académico...")
+    validacion = llm_service.validar_contenido_academico(request.text)
+    
+    if not validacion.get("es_academico", False):
+        raise HTTPException(
+            status_code=400, 
+            detail={
+                "error": "contenido_no_academico",
+                "mensaje": "❌ Contenido no apto para WhatsApp académico. " + validacion.get('razon', '')
+            }
+        )
+    
+    # 2. ADAPTAR contenido (Usa el prompt específico de WhatsApp en llm_service)
+    print("🔄 [WhatsApp] Adaptando contenido con tono conversacional...")
+    adaptacion = llm_service.adaptar_contenido(
+        titulo=request.text[:50],
+        contenido=request.text,
+        red_social="whatsapp"
+    )
+    
+    if "error" in adaptacion:
+        raise HTTPException(status_code=400, detail=adaptacion["error"])
+    
+    # 3. Preparar texto final
+    texto_adaptado = adaptacion.get("text", request.text)
+    
+    print(f"✅ Texto WhatsApp: {texto_adaptado[:100]}...")
+    
+    # 4. ENVIAR por WhatsApp
+    result = social_services.send_whatsapp_message(text=texto_adaptado)
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    return {
+        "validacion": validacion,
+        "adaptacion": adaptacion,
+        "envio": {
+            "message_sid": result.get("id"),
+            "status": result.get("status"),
+            "to": result.get("to"),
+            "raw": result
+        },
+        "mensaje": "✅ Mensaje enviado por WhatsApp"
+    }
+
+
+
+
+
+
+
+
+
+
