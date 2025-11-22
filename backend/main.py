@@ -260,17 +260,19 @@ def test_post_linkedin(request: schemas.TestPostRequest):
         "mensaje": "✅ Publicado en LinkedIn (Tono Profesional)"
     }
 
+
 @app.post("/api/test/whatsapp")
-def test_send_whatsapp(request: schemas.TestPostRequest):
+def test_post_whatsapp_status(request: schemas.TestPostRequest):
     """ 
-    Endpoint para enviar mensaje por WhatsApp
+    🆕 Endpoint para publicar ESTADO en WhatsApp usando Whapi.Cloud
     - VALIDACIÓN de contenido académico
     - ADAPTACIÓN automática (Tono conversacional)
-    - ENVÍO por Twilio
+    - GENERACIÓN DE IMAGEN con IA
+    - PUBLICACIÓN EN ESTADO (Story)
     """
     
     # 1. VALIDAR contenido académico
-    print("🔍 [WhatsApp] Validando contenido académico...")
+    print("🔍 [WhatsApp Status] Validando contenido académico...")
     validacion = llm_service.validar_contenido_academico(request.text)
     
     if not validacion.get("es_academico", False):
@@ -283,7 +285,7 @@ def test_send_whatsapp(request: schemas.TestPostRequest):
         )
     
     # 2. ADAPTAR contenido (Usa el prompt específico de WhatsApp en llm_service)
-    print("🔄 [WhatsApp] Adaptando contenido con tono conversacional...")
+    print("🔄 [WhatsApp Status] Adaptando contenido para Estado...")
     adaptacion = llm_service.adaptar_contenido(
         titulo=request.text[:50],
         contenido=request.text,
@@ -293,13 +295,22 @@ def test_send_whatsapp(request: schemas.TestPostRequest):
     if "error" in adaptacion:
         raise HTTPException(status_code=400, detail=adaptacion["error"])
     
-    # 3. Preparar texto final
+    # 3. Preparar texto final (sin hashtags para WhatsApp Status)
     texto_adaptado = adaptacion.get("text", request.text)
     
     print(f"✅ Texto WhatsApp: {texto_adaptado[:100]}...")
     
-    # 4. ENVIAR por WhatsApp
-    result = social_services.send_whatsapp_message(text=texto_adaptado)
+    # 4. GENERAR IMAGEN con IA (para el estado)
+    print("🎨 Generando imagen para el estado...")
+    prompt_imagen = f"Universidad UAGRM, tema académico: {request.text[:100]}"
+    imagen_url = llm_service.generar_imagen_ia_base64(prompt_imagen)
+    print(f"✅ Imagen generada: {imagen_url[:100]}...")
+    
+    # 5. PUBLICAR EN ESTADO DE WHATSAPP
+    result = social_services.post_whatsapp_status(
+        text=texto_adaptado,
+        image_url=imagen_url
+    )
     
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -307,21 +318,14 @@ def test_send_whatsapp(request: schemas.TestPostRequest):
     return {
         "validacion": validacion,
         "adaptacion": adaptacion,
-        "envio": {
-            "message_sid": result.get("id"),
+        "imagen_generada": {
+            "url": imagen_url,
+            "prompt": prompt_imagen
+        },
+        "publicacion": {
+            "id": result.get("id"),
             "status": result.get("status"),
-            "to": result.get("to"),
             "raw": result
         },
-        "mensaje": "✅ Mensaje enviado por WhatsApp"
+        "mensaje": "✅ Estado publicado en WhatsApp con imagen generada"
     }
-
-
-
-
-
-
-
-
-
-
