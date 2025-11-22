@@ -270,8 +270,7 @@ def adaptar_contenido(titulo: str, contenido: str, red_social: str):
 
 def generar_imagen_ia(prompt_imagen: str) -> str:
     """
-    Genera una imagen usando Pollinations.ai y la sube a Imgur
-    Retorna la URL permanente de Imgur
+    Genera imagen y sube a Imgur - Para Instagram (necesita URL)
     """
     try:
         # 1. Generar imagen con Pollinations
@@ -279,25 +278,14 @@ def generar_imagen_ia(prompt_imagen: str) -> str:
         url_pollinations = f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"
         
         print(f"🎨 Generando imagen con Pollinations...")
-        
-        # 2. Descargar la imagen generada
         response = httpx.get(url_pollinations, timeout=30.0)
         response.raise_for_status()
         imagen_bytes = response.content
-        
         print(f"✅ Imagen generada ({len(imagen_bytes)} bytes)")
         
-        # 3. Subir a Imgur (servicio gratuito que SÍ funciona con Instagram)
-        imgur_client_id = "546c25a59c58ad7"  # Client ID público de Imgur
-        
-        imgur_headers = {
-            "Authorization": f"Client-ID {imgur_client_id}"
-        }
-        
-        imgur_data = {
-            "image": imagen_bytes,
-            "type": "file"
-        }
+        # 2. Subir a Imgur
+        imgur_client_id = "546c25a59c58ad7"
+        imgur_headers = {"Authorization": f"Client-ID {imgur_client_id}"}
         
         print("📤 Subiendo imagen a Imgur...")
         imgur_response = httpx.post(
@@ -307,7 +295,6 @@ def generar_imagen_ia(prompt_imagen: str) -> str:
             timeout=30.0
         )
         imgur_response.raise_for_status()
-        
         imgur_result = imgur_response.json()
         
         if imgur_result["success"]:
@@ -315,12 +302,36 @@ def generar_imagen_ia(prompt_imagen: str) -> str:
             print(f"✅ Imagen subida a Imgur: {url_imgur}")
             return url_imgur
         else:
-            print("❌ Error al subir a Imgur")
             return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"
         
-    except httpx.TimeoutException:
-        print("⏱️ Timeout al generar imagen, usando imagen por defecto")
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"
     except Exception as e:
-        print(f"❌ Error al generar imagen: {e}")
+        print(f"❌ Error: {e}")
         return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"
+
+
+def generar_imagen_ia_base64(prompt_imagen: str) -> str:
+    """
+    Genera imagen en base64 - Para WhatsApp Status
+    """
+    try:
+        import base64
+        
+        prompt_limpio = prompt_imagen[:300].replace(" ", "%20")
+        url_pollinations = f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"
+        
+        print(f"🎨 Generando imagen...")
+        response = httpx.get(url_pollinations, timeout=30.0)
+        response.raise_for_status()
+        imagen_bytes = response.content
+        print(f"✅ Imagen generada ({len(imagen_bytes)} bytes)")
+        
+        # Convertir a base64
+        imagen_base64 = base64.b64encode(imagen_bytes).decode('utf-8')
+        data_url = f"data:image/jpeg;base64,{imagen_base64}"
+        print(f"✅ Convertida a base64")
+        return data_url
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        prompt_limpio = prompt_imagen[:100].replace(" ", "%20")
+        return f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"

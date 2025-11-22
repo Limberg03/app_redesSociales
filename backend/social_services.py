@@ -2,7 +2,6 @@ import httpx
 import os
 import logging
 from dotenv import load_dotenv
-from twilio.rest import Client
 
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
@@ -10,8 +9,11 @@ load_dotenv()
 META_TOKEN = os.getenv("META_ACCESS_TOKEN")
 PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
 IG_ACCOUNT_ID = os.getenv("INSTAGRAM_ACCOUNT_ID")
+WHAPI_TOKEN = os.getenv("WHAPI_TOKEN")
+WHAPI_CHANNEL_ID = os.getenv("WHAPI_CHANNEL_ID")
 
 META_GRAPH_URL = "https://graph.facebook.com/v19.0"
+WHAPI_BASE_URL = "https://gate.whapi.cloud"
 
 
 def post_to_facebook(text: str, image_url: str = None):
@@ -248,99 +250,80 @@ def post_to_linkedin(text: str):
         return {"error": f"Error inesperado: {str(e)}"}
 
 
-
-def send_whatsapp_message(text: str, to_number: str = None):
+def post_whatsapp_status(text: str, image_url: str = None):
     """
-    Envía un mensaje de WhatsApp usando Twilio Sandbox.
+    🆕 Publica un ESTADO (Story) en WhatsApp usando Whapi.Cloud
     
     Args:
-        text: El mensaje a enviar
-        to_number: Número de destino (formato: +591XXXXXXXXX)
-                   Si no se proporciona, usa YOUR_WHATSAPP_NUMBER del .env
+        text: El texto del estado
+        image_url: URL o data URL de la imagen en base64
     
     Returns:
         dict: Resultado de la operación
     """
     
-    TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-    TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-    TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
-    DEFAULT_TO_NUMBER = os.getenv("YOUR_WHATSAPP_NUMBER")
-    
-    # Validaciones
-    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
-        logging.error("❌ Credenciales de Twilio no configuradas en .env")
+    if not WHAPI_TOKEN:
+        logging.error("❌ WHAPI_TOKEN no configurado en .env")
         return {
-            "error": "Twilio no configurado. Verifica TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN en .env"
+            "error": "Whapi.Cloud no configurado. Agrega WHAPI_TOKEN en .env"
         }
     
-    if not TWILIO_WHATSAPP_NUMBER:
-        logging.error("❌ TWILIO_WHATSAPP_NUMBER no configurado en .env")
-        return {
-            "error": "Número de WhatsApp de Twilio no configurado"
+    logging.info(f"📱 Publicando estado en WhatsApp: {text[:30]}...")
+    
+    status_url = f"{WHAPI_BASE_URL}/stories"
+    
+    headers = {
+        'Authorization': f'Bearer {WHAPI_TOKEN}',
+        'Content-Type': 'application/json'
+    }
+    
+    # Preparar payload
+    if image_url and image_url.startswith('data:image'):
+        # Imagen en base64 (ya viene lista)
+        payload = {
+            "media": image_url,
+            "caption": text
         }
-    
-    # Determinar número de destino
-    recipient = to_number or DEFAULT_TO_NUMBER
-    
-    if not recipient:
-        logging.error("❌ No se especificó número de destino")
-        return {
-            "error": "Número de destino no especificado. Usa 'to_number' o configura YOUR_WHATSAPP_NUMBER"
+        logging.info(f"✅ Usando imagen en base64")
+    else:
+        # Solo texto con fondo de color
+        payload = {
+            "background_color": "#1F2937",
+            "caption": text,
+            "caption_color": "#FFFFFF",
+            "font_type": "SYSTEM"  # Cambiado de SANS_SERIF a SYSTEM
         }
-    
-    # Asegurar formato whatsapp:
-    from_whatsapp = f"whatsapp:{TWILIO_WHATSAPP_NUMBER}"
-    to_whatsapp = f"whatsapp:{recipient}" if not recipient.startswith("whatsapp:") else recipient
+        logging.info(f"✅ Usando solo texto con fondo")
     
     try:
-        logging.info(f"Enviando WhatsApp a {to_whatsapp}...")
+        logging.info(f"📤 Enviando payload a Whapi.Cloud...")
+        response = httpx.post(status_url, json=payload, headers=headers, timeout=30.0)
         
-        # Inicializar cliente de Twilio
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        # Log del response para debug
+        logging.info(f"📥 Status code: {response.status_code}")
+        logging.info(f"📥 Response: {response.text[:200]}")
         
-        # Enviar mensaje
-        message = client.messages.create(
-            body=text,
-            from_=from_whatsapp,
-            to=to_whatsapp
-        )
+        response.raise_for_status()
         
-        logging.info(f"✅ Mensaje enviado. SID: {message.sid}")
-        logging.info(f"   Estado: {message.status}")
+        result = response.json()
+        logging.info(f"✅ Estado publicado en WhatsApp")
         
         return {
-            "id": message.sid,
-            "status": message.status,
-            "to": recipient,
-            "message": "Mensaje enviado correctamente"
+            "id": result.get("id", "N/A"),
+            "status": "publicado",
+            "mensaje": "Estado publicado exitosamente en WhatsApp"
         }
+        
+    except httpx.HTTPStatusError as e:
+        try:
+            error_data = e.response.json()
+            logging.error(f"❌ Error al publicar estado en WhatsApp: {error_data}")
+            logging.error(f"❌ Response text: {e.response.text}")
+        except:
+            logging.error(f"❌ Error HTTP: {e}")
+        
+        return {"error": f"Error al publicar estado: {e.response.text if hasattr(e, 'response') else str(e)}"}
         
     except Exception as e:
-        logging.error(f"❌ Error al enviar WhatsApp: {e}")
-        
-        # Errores comunes
-        error_str = str(e)
-        
-        if "not a valid phone number" in error_str:
-            logging.error("💡 Verifica que el número tenga el formato correcto: +591XXXXXXXXX")
-        elif "not verified" in error_str or "sandbox" in error_str.lower():
-            logging.error("💡 Asegúrate de que:")
-            logging.error("   1. Has enviado 'join <código>' al sandbox de Twilio")
-            logging.error("   2. Tu número está conectado al sandbox")
-        elif "authenticate" in error_str.lower():
-            logging.error("💡 Verifica tus credenciales TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN")
-        
-        return {
-            "error": f"Error al enviar WhatsApp: {str(e)}"
-        }
-
-
-
-
-
-
-
-
-
-
+        logging.error(f"❌ Error inesperado: {e}")
+        return {"error": f"Error inesperado: {str(e)}"}
