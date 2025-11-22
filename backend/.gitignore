@@ -1,2 +1,11 @@
+# Archivo de secretos
 .env
-*.env
+
+# Entorno virtual
+venv/
+venv
+
+# Archivos compilados
+__pycache__/
+*.pyc
+
