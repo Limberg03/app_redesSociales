@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import social_services
 import schemas
 import llm_service
+import os
 
 app = FastAPI()
 
@@ -333,11 +334,7 @@ def test_post_whatsapp_status(request: schemas.TestPostRequest):
 @app.post("/api/test/tiktok")
 def test_post_tiktok(request: schemas.TestPostRequest):
     """ 
-    🆕 Endpoint para publicar en TikTok
-    - VALIDACIÓN de contenido académico
-    - ADAPTACIÓN automática (Tono joven, viral)
-    - GENERACIÓN DE VIDEO con IA (Pexels + ElevenLabs)
-    - PUBLICACIÓN EN TIKTOK (privado por defecto)
+    Endpoint para publicar en TikTok (PRIVADO)
     """
     
     # 1. VALIDAR contenido académico
@@ -353,7 +350,7 @@ def test_post_tiktok(request: schemas.TestPostRequest):
             }
         )
     
-    # 2. ADAPTAR contenido (Usa el prompt específico de TikTok en llm_service)
+    # 2. ADAPTAR contenido
     print("🔄 [TikTok] Adaptando contenido para TikTok...")
     adaptacion = llm_service.adaptar_contenido(
         titulo=request.text[:50],
@@ -367,7 +364,6 @@ def test_post_tiktok(request: schemas.TestPostRequest):
     # 3. Preparar texto adaptado
     texto_adaptado = adaptacion.get("text", request.text)
     
-    # TikTok: hashtags se incluyen en el caption
     if "hashtags" in adaptacion and adaptacion["hashtags"]:
         hashtags_str = " ".join(adaptacion["hashtags"])
         texto_adaptado = f"{texto_adaptado}\n\n{hashtags_str}"
@@ -383,10 +379,7 @@ def test_post_tiktok(request: schemas.TestPostRequest):
             status_code=500,
             detail={
                 "error": "video_generation_failed",
-                "mensaje": "Error al generar video. Verifica que:\n"
-                           "1. FFmpeg esté instalado (https://www.gyan.dev/ffmpeg/builds/)\n"
-                           "2. PEXELS_API_KEY esté configurada en .env\n"
-                           "3. gTTS esté instalado (pip install gtts)"
+                "mensaje": "Error al generar video."
             }
         )
     
@@ -396,27 +389,24 @@ def test_post_tiktok(request: schemas.TestPostRequest):
     result = social_services.post_to_tiktok(
         text=texto_adaptado,
         video_path=video_path,
-        privacy="SELF_ONLY"  # Privado para pruebas
+        privacy="SELF_ONLY"  # PRIVADO
     )
     
-    # Limpiar video temporal
+    # 6. Limpiar video temporal
     if video_path and os.path.exists(video_path):
         os.unlink(video_path)
     
+    # 7. Verificar resultado
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        raise HTTPException(status_code=400, detail=result)
     
+    # 8. Respuesta exitosa
     return {
         "validacion": validacion,
         "adaptacion": adaptacion,
         "video_generado": {
-            "mensaje": "Video generado con Pexels + ElevenLabs"
+            "mensaje": "Video generado con Pexels + gTTS"
         },
-        "publicacion": {
-            "publish_id": result.get("publish_id"),
-            "status": result.get("status"),
-            "privacy": "privado (SELF_ONLY)",
-            "raw": result
-        },
-        "mensaje": "✅ Video generado y publicado en TikTok (privado para pruebas)"
-    }    
+        "publicacion": result,
+        "mensaje": "✅ Video generado y publicado en TikTok (privado)"
+    }

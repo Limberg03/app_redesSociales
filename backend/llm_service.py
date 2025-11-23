@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 import subprocess
 import tempfile
 import re
+import shutil
+import platform
 
 load_dotenv()
 
@@ -21,6 +23,29 @@ model = genai.GenerativeModel(
     model_name='gemini-2.0-flash',
     generation_config=generation_config,
 )
+
+# ============================================
+# 🔧 CONFIGURACIÓN DE FFMPEG
+# ============================================
+
+# CONFIGURACIÓN ESPECÍFICA PARA TU SISTEMA
+if platform.system() == "Windows":
+    # 🎯 TU RUTA ESPECÍFICA DE FFMPEG
+    FFMPEG_PATH = r"C:\ffmpeg-8.0.1-full_build\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe"
+    
+    # Verificar que existe
+    if not os.path.exists(FFMPEG_PATH):
+        print(f"⚠️ FFmpeg no encontrado en ruta específica: {FFMPEG_PATH}")
+        print("🔍 Buscando en PATH del sistema...")
+        FFMPEG_PATH = shutil.which('ffmpeg') or 'ffmpeg'
+    else:
+        print(f"✅ FFmpeg configurado correctamente: {FFMPEG_PATH}")
+else:
+    # Linux/Mac: usar PATH normal
+    FFMPEG_PATH = shutil.which('ffmpeg') or 'ffmpeg'
+    print(f"🎬 Usando FFmpeg desde PATH: {FFMPEG_PATH}")
+
+# ============================================
 
 PROMPTS_POR_RED = {
     "facebook": """
@@ -113,7 +138,7 @@ PROMPTS_POR_RED = {
       "video_hook": "La primera frase que dirías en el video para captar la atención"
     }}
     """,
-       "whatsapp": """
+    "whatsapp": """
     Eres un experto en comunicación directa especializado en WhatsApp para instituciones académicas.
     Tu tarea es adaptar contenido académico/universitario para ser enviado por este canal.
 
@@ -148,7 +173,6 @@ PROMPTS_POR_RED = {
 
 import json
 import httpx
-import os
 
 def validar_contenido_academico(texto: str) -> dict:
     """
@@ -467,19 +491,29 @@ def generar_audio_elevenlabs(texto: str) -> str:
 
 def verificar_ffmpeg() -> bool:
     """
-    Verifica si FFmpeg está instalado y disponible en el sistema
+    Verifica si FFmpeg está instalado y disponible
     """
     try:
         result = subprocess.run(
-            ['ffmpeg', '-version'],
+            [FFMPEG_PATH, '-version'],
             capture_output=True,
             text=True,
             timeout=5
         )
-        return result.returncode == 0
+        if result.returncode == 0:
+            print(f"✅ FFmpeg verificado correctamente (versión encontrada)")
+            return True
+        else:
+            print(f"⚠️ FFmpeg devolvió código: {result.returncode}")
+            return False
     except FileNotFoundError:
+        print(f"❌ FFmpeg NO encontrado en: {FFMPEG_PATH}")
+        print("💡 Soluciones:")
+        print(f"   1. Verifica que exista el archivo: {FFMPEG_PATH}")
+        print(f"   2. O agrega FFmpeg al PATH de Windows")
         return False
-    except Exception:
+    except Exception as e:
+        print(f"❌ Error al verificar FFmpeg: {type(e).__name__}: {e}")
         return False
 
 
@@ -490,11 +524,6 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
     try:
         # Verificar FFmpeg primero
         if not verificar_ffmpeg():
-            print("❌ FFmpeg no está instalado o no está en el PATH")
-            print("💡 Para instalar FFmpeg:")
-            print("   Windows: Descarga desde https://www.gyan.dev/ffmpeg/builds/ y agrega al PATH")
-            print("   Mac: brew install ffmpeg")
-            print("   Linux: sudo apt install ffmpeg")
             return None
 
         print(f"🎬 Combinando {len(video_urls)} videos con audio...")
@@ -522,9 +551,9 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
         # Crear lista de archivos para FFmpeg
         concat_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
         for path in video_paths:
-            # En Windows, escapar las barras invertidas en las rutas
-            path_escaped = path.replace('\\', '/')
-            concat_file.write(f"file '{path_escaped}'\n")
+            # Normalizar rutas para FFmpeg
+            path_normalized = path.replace('\\', '/')
+            concat_file.write(f"file '{path_normalized}'\n")
         concat_file.close()
 
         # Combinar videos
@@ -532,7 +561,7 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
 
         print("🔄 Paso 1: Concatenando videos...")
         subprocess.run([
-            'ffmpeg', '-f', 'concat', '-safe', '0',
+            FFMPEG_PATH, '-f', 'concat', '-safe', '0',
             '-i', concat_file.name,
             '-vf', f'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
             '-t', str(duracion_total),
@@ -543,7 +572,7 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
         # Agregar audio
         print("🔄 Paso 2: Agregando audio...")
         subprocess.run([
-            'ffmpeg', '-i', temp_video, '-i', audio_path,
+            FFMPEG_PATH, '-i', temp_video, '-i', audio_path,
             '-c:v', 'copy', '-c:a', 'aac',
             '-map', '0:v:0', '-map', '1:a:0',
             '-shortest',
@@ -561,10 +590,9 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
         return output_path
 
     except FileNotFoundError:
-        print("❌ FFmpeg no encontrado. Por favor instala FFmpeg:")
-        print("   Windows: https://www.gyan.dev/ffmpeg/builds/")
-        print("   Mac: brew install ffmpeg")
-        print("   Linux: sudo apt install ffmpeg")
+        print(f"❌ FFmpeg no encontrado en: {FFMPEG_PATH}")
+        print("💡 Asegúrate de que FFmpeg esté instalado correctamente")
+        print(f"   Ruta configurada: {FFMPEG_PATH}")
         return None
     except subprocess.CalledProcessError as e:
         print(f"❌ Error en FFmpeg: {e.stderr if e.stderr else e}")
@@ -581,7 +609,7 @@ def generar_video_tiktok(texto_adaptado: str) -> str:
     
     1. Extrae keywords del texto
     2. Busca videos en Pexels
-    3. Genera audio con ElevenLabs
+    3. Genera audio con gTTS
     4. Combina todo con FFmpeg
     
     Returns: Path del video final
@@ -623,4 +651,4 @@ def generar_video_tiktok(texto_adaptado: str) -> str:
         print(f"🎉 Video TikTok generado exitosamente")
         print("="*60 + "\n")
     
-    return video_final        
+    return video_final
