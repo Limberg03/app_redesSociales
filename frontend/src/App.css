@@ -541,5 +541,9 @@ code {
   font-weight: 500;
 }
 
+.social-btn-tiktok.active {
+  background: linear-gradient(135deg, #00f2ea 0%, #ff0050 100%);
+}
+
 }
 

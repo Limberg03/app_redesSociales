@@ -1,6 +1,9 @@
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
+import subprocess
+import tempfile
+import re
 
 load_dotenv()
 
@@ -335,3 +338,251 @@ def generar_imagen_ia_base64(prompt_imagen: str) -> str:
         print(f"❌ Error: {e}")
         prompt_limpio = prompt_imagen[:100].replace(" ", "%20")
         return f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"
+
+
+def extraer_keywords_con_llm(texto: str) -> list:
+    """
+    Extrae 3 keywords principales del texto para buscar videos
+    """
+    prompt_keywords = f"""
+    Del siguiente texto académico, extrae EXACTAMENTE 3 palabras clave en INGLÉS 
+    para buscar videos de stock que representen visualmente el contenido.
+    
+    Las keywords deben ser:
+    - Simples (1-2 palabras)
+    - Generales (que existan videos en Pexels)
+    - Relacionadas con educación universitaria
+    
+    Texto: "{texto}"
+    
+    Responde SOLO con un JSON:
+    {{
+      "keywords": ["keyword1", "keyword2", "keyword3"]
+    }}
+    
+    Ejemplos válidos:
+    - ["students", "university", "studying"]
+    - ["campus", "graduation", "books"]
+    - ["classroom", "lecture", "college"]
+    
+    NO incluyas palabras muy específicas como nombres propios.
+    """
+    
+    try:
+        response = model.generate_content(prompt_keywords)
+        response_text = response.text.strip()
+        response_text = response_text.replace('```json\n', '').replace('```\n', '').replace('```', '').strip()
+        
+        resultado = json.loads(response_text)
+        keywords = resultado.get("keywords", ["university", "students", "education"])
+        
+        print(f"🔍 Keywords extraídas: {keywords}")
+        return keywords[:3]
+        
+    except Exception as e:
+        print(f"⚠️ Error al extraer keywords: {e}")
+        return ["university", "students", "education"]
+
+
+def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
+    """
+    Busca un video en Pexels API
+    """
+    PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
+    
+    if not PEXELS_API_KEY:
+        print("⚠️ PEXELS_API_KEY no configurada")
+        return None
+    
+    headers = {"Authorization": PEXELS_API_KEY}
+    
+    params = {
+        "query": query,
+        "per_page": 1,
+        "orientation": orientation,  # portrait para TikTok
+        "size": "medium"
+    }
+    
+    try:
+        response = httpx.get(
+            "https://api.pexels.com/videos/search",
+            headers=headers,
+            params=params,
+            timeout=10.0
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        videos = data.get("videos", [])
+        
+        if videos:
+            # Buscar el archivo de video en resolución portrait
+            video_files = videos[0].get("video_files", [])
+            
+            # Priorizar resolución HD portrait
+            for vf in video_files:
+                if vf.get("width", 0) < vf.get("height", 0):  # Portrait
+                    print(f"✅ Video encontrado: {query}")
+                    return vf.get("link")
+            
+            # Si no hay portrait, usar el primero
+            if video_files:
+                return video_files[0].get("link")
+        
+        print(f"⚠️ No se encontraron videos para: {query}")
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error buscando video en Pexels: {e}")
+        return None
+
+
+def generar_audio_elevenlabs(texto: str) -> str:
+    """
+    Genera audio con Google TTS (gTTS) - VERSIÓN GRATUITA
+    Reemplaza ElevenLabs para evitar costos
+    """
+    try:
+        from gtts import gTTS
+        
+        print(f"🎤 Generando audio con Google TTS (gTTS)...")
+        
+        # Crear audio con gTTS
+        tts = gTTS(text=texto, lang='es', slow=False)
+        
+        # Guardar en archivo temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as audio_file:
+            tts.save(audio_file.name)
+            audio_path = audio_file.name
+            print(f"✅ Audio generado: {audio_path}")
+            return audio_path
+            
+    except ImportError:
+        print("❌ gTTS no instalado. Ejecuta: pip install gtts")
+        return None
+    except Exception as e:
+        print(f"❌ Error generando audio: {e}")
+        return None
+
+
+def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total: int = 15) -> str:
+    """
+    Combina múltiples videos con audio usando FFmpeg
+    """
+    try:
+        print(f"🎬 Combinando {len(video_urls)} videos con audio...")
+        
+        # Descargar videos
+        video_paths = []
+        for i, url in enumerate(video_urls):
+            if not url:
+                continue
+            
+            print(f"📥 Descargando video {i+1}...")
+            response = httpx.get(url, timeout=30.0)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as video_file:
+                video_file.write(response.content)
+                video_paths.append(video_file.name)
+        
+        if not video_paths:
+            print("❌ No se descargaron videos")
+            return None
+        
+        # Crear archivo temporal para el video final
+        output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+        
+        # Crear lista de archivos para FFmpeg
+        concat_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
+        for path in video_paths:
+            concat_file.write(f"file '{path}'\n")
+        concat_file.close()
+        
+        # Combinar videos
+        temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+        
+        subprocess.run([
+            'ffmpeg', '-f', 'concat', '-safe', '0',
+            '-i', concat_file.name,
+            '-vf', f'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+            '-t', str(duracion_total),
+            '-c:v', 'libx264', '-preset', 'fast',
+            '-y', temp_video
+        ], check=True, capture_output=True)
+        
+        # Agregar audio
+        subprocess.run([
+            'ffmpeg', '-i', temp_video, '-i', audio_path,
+            '-c:v', 'copy', '-c:a', 'aac',
+            '-map', '0:v:0', '-map', '1:a:0',
+            '-shortest',
+            '-y', output_path
+        ], check=True, capture_output=True)
+        
+        print(f"✅ Video final creado: {output_path}")
+        
+        # Limpiar archivos temporales
+        os.unlink(concat_file.name)
+        os.unlink(temp_video)
+        for path in video_paths:
+            os.unlink(path)
+        
+        return output_path
+        
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error en FFmpeg: {e.stderr.decode() if e.stderr else e}")
+        return None
+    except Exception as e:
+        print(f"❌ Error combinando videos: {e}")
+        return None
+
+
+def generar_video_tiktok(texto_adaptado: str) -> str:
+    """
+    FUNCIÓN PRINCIPAL: Genera video completo para TikTok
+    
+    1. Extrae keywords del texto
+    2. Busca videos en Pexels
+    3. Genera audio con ElevenLabs
+    4. Combina todo con FFmpeg
+    
+    Returns: Path del video final
+    """
+    print("\n" + "="*60)
+    print("🎬 GENERANDO VIDEO PARA TIKTOK")
+    print("="*60)
+    
+    # 1. Extraer keywords
+    keywords = extraer_keywords_con_llm(texto_adaptado)
+    
+    # 2. Buscar videos
+    video_urls = []
+    for keyword in keywords:
+        url = buscar_video_pexels(keyword)
+        if url:
+            video_urls.append(url)
+    
+    if not video_urls:
+        print("❌ No se encontraron videos en Pexels")
+        return None
+    
+    print(f"✅ Encontrados {len(video_urls)} videos")
+    
+    # 3. Generar audio
+    audio_path = generar_audio_elevenlabs(texto_adaptado)
+    if not audio_path:
+        print("❌ No se pudo generar audio")
+        return None
+    
+    # 4. Combinar todo
+    video_final = combinar_videos_con_audio(video_urls, audio_path)
+    
+    # Limpiar audio temporal
+    if audio_path and os.path.exists(audio_path):
+        os.unlink(audio_path)
+    
+    if video_final:
+        print(f"🎉 Video TikTok generado exitosamente")
+        print("="*60 + "\n")
+    
+    return video_final        

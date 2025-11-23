@@ -327,3 +327,130 @@ def post_whatsapp_status(text: str, image_url: str = None):
     except Exception as e:
         logging.error(f"❌ Error inesperado: {e}")
         return {"error": f"Error inesperado: {str(e)}"}
+    
+def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
+    """
+    Publica video en TikTok (modo privado por defecto)
+    
+    Args:
+        text: Caption del video
+        video_path: Path local del video
+        privacy: "SELF_ONLY" (privado), "PUBLIC_TO_EVERYONE" (público)
+    """
+    TIKTOK_TOKEN = os.getenv("TIKTOK_ACCESS_TOKEN")
+    
+    if not TIKTOK_TOKEN:
+        logging.error("❌ TIKTOK_ACCESS_TOKEN no configurado")
+        return {"error": "TikTok no configurado"}
+    
+    if not os.path.exists(video_path):
+        logging.error(f"❌ Video no encontrado: {video_path}")
+        return {"error": "Video no encontrado"}
+    
+    logging.info(f"📤 Publicando en TikTok: {text[:30]}...")
+    
+    try:
+        # PASO 1: Inicializar publicación
+        logging.info("TikTok - Paso 1: Inicializando publicación...")
+        
+        init_url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
+        
+        headers = {
+            "Authorization": f"Bearer {TIKTOK_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        # Obtener tamaño del video
+        video_size = os.path.getsize(video_path)
+        
+        payload = {
+            "post_info": {
+                "title": text[:150],  # Máximo 150 caracteres
+                "privacy_level": privacy,
+                "disable_duet": False,
+                "disable_comment": False,
+                "disable_stitch": False,
+                "video_cover_timestamp_ms": 1000
+            },
+            "source_info": {
+                "source": "FILE_UPLOAD",
+                "video_size": video_size,
+                "chunk_size": video_size,
+                "total_chunk_count": 1
+            }
+        }
+        
+        response_init = httpx.post(init_url, json=payload, headers=headers, timeout=30.0)
+        response_init.raise_for_status()
+        
+        init_data = response_init.json()
+        publish_id = init_data["data"]["publish_id"]
+        upload_url = init_data["data"]["upload_url"]
+        
+        logging.info(f"✅ Publish ID: {publish_id}")
+        
+        # PASO 2: Subir video
+        logging.info("TikTok - Paso 2: Subiendo video...")
+        
+        with open(video_path, 'rb') as video_file:
+            video_bytes = video_file.read()
+        
+        upload_headers = {
+            "Content-Type": "video/mp4",
+            "Content-Length": str(len(video_bytes))
+        }
+        
+        response_upload = httpx.put(
+            upload_url,
+            content=video_bytes,
+            headers=upload_headers,
+            timeout=60.0
+        )
+        response_upload.raise_for_status()
+        
+        logging.info("✅ Video subido correctamente")
+        
+        # PASO 3: Confirmar publicación
+        logging.info("TikTok - Paso 3: Confirmando publicación...")
+        
+        confirm_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+        
+        confirm_payload = {
+            "publish_id": publish_id
+        }
+        
+        # Esperar a que TikTok procese el video
+        import time
+        time.sleep(3)
+        
+        response_confirm = httpx.post(
+            confirm_url,
+            json=confirm_payload,
+            headers=headers,
+            timeout=30.0
+        )
+        response_confirm.raise_for_status()
+        
+        result = response_confirm.json()
+        
+        logging.info(f"✅ Publicado en TikTok (privado)")
+        
+        return {
+            "publish_id": publish_id,
+            "status": result.get("data", {}).get("status", "processing"),
+            "privacy": privacy,
+            "mensaje": "✅ Video publicado en TikTok (modo privado para pruebas)"
+        }
+        
+    except httpx.HTTPStatusError as e:
+        try:
+            error_data = e.response.json()
+            logging.error(f"❌ Error TikTok API: {error_data}")
+        except:
+            logging.error(f"❌ Error HTTP: {e}")
+        
+        return {"error": f"Error de API TikTok: {e.response.text if hasattr(e, 'response') else str(e)}"}
+        
+    except Exception as e:
+        logging.error(f"❌ Error inesperado: {e}")
+        return {"error": f"Error inesperado: {str(e)}"}    

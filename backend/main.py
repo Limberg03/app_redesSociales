@@ -329,3 +329,88 @@ def test_post_whatsapp_status(request: schemas.TestPostRequest):
         },
         "mensaje": "✅ Estado publicado en WhatsApp con imagen generada"
     }
+
+@app.post("/api/test/tiktok")
+def test_post_tiktok(request: schemas.TestPostRequest):
+    """ 
+    🆕 Endpoint para publicar en TikTok
+    - VALIDACIÓN de contenido académico
+    - ADAPTACIÓN automática (Tono joven, viral)
+    - GENERACIÓN DE VIDEO con IA (Pexels + ElevenLabs)
+    - PUBLICACIÓN EN TIKTOK (privado por defecto)
+    """
+    
+    # 1. VALIDAR contenido académico
+    print("🔍 [TikTok] Validando contenido académico...")
+    validacion = llm_service.validar_contenido_academico(request.text)
+    
+    if not validacion.get("es_academico", False):
+        raise HTTPException(
+            status_code=400, 
+            detail={
+                "error": "contenido_no_academico",
+                "mensaje": "❌ Contenido no apto para TikTok académico. " + validacion.get('razon', '')
+            }
+        )
+    
+    # 2. ADAPTAR contenido (Usa el prompt específico de TikTok en llm_service)
+    print("🔄 [TikTok] Adaptando contenido para TikTok...")
+    adaptacion = llm_service.adaptar_contenido(
+        titulo=request.text[:50],
+        contenido=request.text,
+        red_social="tiktok"
+    )
+    
+    if "error" in adaptacion:
+        raise HTTPException(status_code=400, detail=adaptacion["error"])
+    
+    # 3. Preparar texto adaptado
+    texto_adaptado = adaptacion.get("text", request.text)
+    
+    # TikTok: hashtags se incluyen en el caption
+    if "hashtags" in adaptacion and adaptacion["hashtags"]:
+        hashtags_str = " ".join(adaptacion["hashtags"])
+        texto_adaptado = f"{texto_adaptado}\n\n{hashtags_str}"
+    
+    print(f"✅ Texto TikTok: {texto_adaptado[:100]}...")
+    
+    # 4. GENERAR VIDEO con IA
+    print("🎬 [TikTok] Generando video con IA...")
+    video_path = llm_service.generar_video_tiktok(texto_adaptado)
+    
+    if not video_path:
+        raise HTTPException(
+            status_code=500,
+            detail="Error al generar video. Verifica las API keys de Pexels y ElevenLabs"
+        )
+    
+    print(f"✅ Video generado: {video_path}")
+    
+    # 5. PUBLICAR EN TIKTOK (PRIVADO)
+    result = social_services.post_to_tiktok(
+        text=texto_adaptado,
+        video_path=video_path,
+        privacy="SELF_ONLY"  # Privado para pruebas
+    )
+    
+    # Limpiar video temporal
+    if video_path and os.path.exists(video_path):
+        os.unlink(video_path)
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    return {
+        "validacion": validacion,
+        "adaptacion": adaptacion,
+        "video_generado": {
+            "mensaje": "Video generado con Pexels + ElevenLabs"
+        },
+        "publicacion": {
+            "publish_id": result.get("publish_id"),
+            "status": result.get("status"),
+            "privacy": "privado (SELF_ONLY)",
+            "raw": result
+        },
+        "mensaje": "✅ Video generado y publicado en TikTok (privado para pruebas)"
+    }    
