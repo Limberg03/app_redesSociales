@@ -465,42 +465,72 @@ def generar_audio_elevenlabs(texto: str) -> str:
         return None
 
 
+def verificar_ffmpeg() -> bool:
+    """
+    Verifica si FFmpeg está instalado y disponible en el sistema
+    """
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-version'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return False
+
+
 def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total: int = 15) -> str:
     """
     Combina múltiples videos con audio usando FFmpeg
     """
     try:
+        # Verificar FFmpeg primero
+        if not verificar_ffmpeg():
+            print("❌ FFmpeg no está instalado o no está en el PATH")
+            print("💡 Para instalar FFmpeg:")
+            print("   Windows: Descarga desde https://www.gyan.dev/ffmpeg/builds/ y agrega al PATH")
+            print("   Mac: brew install ffmpeg")
+            print("   Linux: sudo apt install ffmpeg")
+            return None
+
         print(f"🎬 Combinando {len(video_urls)} videos con audio...")
-        
+
         # Descargar videos
         video_paths = []
         for i, url in enumerate(video_urls):
             if not url:
                 continue
-            
+
             print(f"📥 Descargando video {i+1}...")
             response = httpx.get(url, timeout=30.0)
-            
+
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as video_file:
                 video_file.write(response.content)
                 video_paths.append(video_file.name)
-        
+
         if not video_paths:
             print("❌ No se descargaron videos")
             return None
-        
+
         # Crear archivo temporal para el video final
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-        
+
         # Crear lista de archivos para FFmpeg
         concat_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
         for path in video_paths:
-            concat_file.write(f"file '{path}'\n")
+            # En Windows, escapar las barras invertidas en las rutas
+            path_escaped = path.replace('\\', '/')
+            concat_file.write(f"file '{path_escaped}'\n")
         concat_file.close()
-        
+
         # Combinar videos
         temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-        
+
+        print("🔄 Paso 1: Concatenando videos...")
         subprocess.run([
             'ffmpeg', '-f', 'concat', '-safe', '0',
             '-i', concat_file.name,
@@ -508,32 +538,40 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
             '-t', str(duracion_total),
             '-c:v', 'libx264', '-preset', 'fast',
             '-y', temp_video
-        ], check=True, capture_output=True)
-        
+        ], check=True, capture_output=True, text=True)
+
         # Agregar audio
+        print("🔄 Paso 2: Agregando audio...")
         subprocess.run([
             'ffmpeg', '-i', temp_video, '-i', audio_path,
             '-c:v', 'copy', '-c:a', 'aac',
             '-map', '0:v:0', '-map', '1:a:0',
             '-shortest',
             '-y', output_path
-        ], check=True, capture_output=True)
-        
+        ], check=True, capture_output=True, text=True)
+
         print(f"✅ Video final creado: {output_path}")
-        
+
         # Limpiar archivos temporales
         os.unlink(concat_file.name)
         os.unlink(temp_video)
         for path in video_paths:
             os.unlink(path)
-        
+
         return output_path
-        
+
+    except FileNotFoundError:
+        print("❌ FFmpeg no encontrado. Por favor instala FFmpeg:")
+        print("   Windows: https://www.gyan.dev/ffmpeg/builds/")
+        print("   Mac: brew install ffmpeg")
+        print("   Linux: sudo apt install ffmpeg")
+        return None
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error en FFmpeg: {e.stderr.decode() if e.stderr else e}")
+        print(f"❌ Error en FFmpeg: {e.stderr if e.stderr else e}")
+        print(f"   Comando: {' '.join(e.cmd)}")
         return None
     except Exception as e:
-        print(f"❌ Error combinando videos: {e}")
+        print(f"❌ Error combinando videos: {type(e).__name__}: {e}")
         return None
 
 

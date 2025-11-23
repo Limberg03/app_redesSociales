@@ -377,11 +377,17 @@ def test_post_tiktok(request: schemas.TestPostRequest):
     # 4. GENERAR VIDEO con IA
     print("🎬 [TikTok] Generando video con IA...")
     video_path = llm_service.generar_video_tiktok(texto_adaptado)
-    
+
     if not video_path:
         raise HTTPException(
             status_code=500,
-            detail="Error al generar video. Verifica las API keys de Pexels y ElevenLabs"
+            detail={
+                "error": "video_generation_failed",
+                "mensaje": "Error al generar video. Verifica que:\n"
+                           "1. FFmpeg esté instalado (https://www.gyan.dev/ffmpeg/builds/)\n"
+                           "2. PEXELS_API_KEY esté configurada en .env\n"
+                           "3. gTTS esté instalado (pip install gtts)"
+            }
         )
     
     print(f"✅ Video generado: {video_path}")
