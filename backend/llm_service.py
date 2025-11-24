@@ -401,163 +401,477 @@ def generar_imagen_ia_base64(prompt_imagen: str) -> str:
 
 def extraer_keywords_con_llm(texto: str) -> list:
     """
-    🆕 VERSIÓN MEJORADA: Extrae keywords ESPECÍFICAS para buscar videos relevantes
+    🆕 VERSIÓN 3.0 MEJORADA: Extrae keywords ULTRA-ESPECÍFICAS y VISUALES
     
-    Ahora analiza el contenido y genera keywords contextuales:
-    - Si menciona FICCT/computación → "computer science", "programming", "coding"
-    - Si menciona inscripciones → "registration desk", "students enrollment"
-    - Si menciona exámenes → "students studying", "exam preparation"
-    - Si menciona graduación → "graduation ceremony", "university caps"
-    
-    Genera 3-5 keywords en INGLÉS, específicas y visuales
+    MEJORAS vs versión anterior:
+    ✅ Analiza el contexto académico con más profundidad
+    ✅ Genera keywords de 3-5 palabras (más específicas)
+    ✅ Incluye análisis semántico de acciones/escenas
+    ✅ Prioriza keywords con alta probabilidad de match en Pexels
+    ✅ Fallbacks inteligentes por categoría
     """
+    
     prompt_keywords = f"""
-    Eres un experto en selección de contenido visual para videos de TikTok académicos.
+    Eres un experto en selección de contenido visual para videos académicos de TikTok.
+    Tu especialidad es la UAGRM (Universidad Autónoma Gabriel René Moreno) en Bolivia.
     
-    Tu tarea es analizar el siguiente texto sobre la UAGRM (Universidad) y extraer 
-    3-5 keywords en INGLÉS para buscar videos de stock que representen VISUALMENTE 
-    y ESPECÍFICAMENTE el contenido.
+    🎯 MISIÓN: Analizar el texto y generar 5 keywords en INGLÉS que representen 
+    VISUALMENTE y ESPECÍFICAMENTE el contenido para buscar videos en Pexels.
     
-    REGLAS CRÍTICAS:
-    ✅ Las keywords deben ser ESPECÍFICAS al tema, no genéricas
-    ✅ Piensa en qué se vería en el video, no solo el concepto
-    ✅ Usa términos visuales y descriptivos
-    ✅ SIEMPRE en INGLÉS (para Pexels API)
-    ✅ Máximo 2-3 palabras por keyword
-    ✅ Prioriza keywords que tengan alta probabilidad de tener videos
+    ═══════════════════════════════════════════════════════════════
+    📋 REGLAS CRÍTICAS PARA KEYWORDS
+    ═══════════════════════════════════════════════════════════════
     
-    CONTEXTO ACADÉMICO:
-    - FICCT = Facultad de Ciencias de la Computación (computer science, IT, programming)
-    - UAGRM = Universidad en Bolivia (university campus, college students)
-    - Temas comunes: inscripciones, retiros, exámenes, clases, eventos
+    ✅ HACER:
+    - Usar 3-5 palabras por keyword (ej: "students walking university entrance")
+    - Pensar en ACCIONES y ESCENAS concretas (¿qué se VE en el video?)
+    - Incluir el CONTEXTO completo (no solo el sujeto)
+    - Usar términos VISUALES y descriptivos
+    - Priorizar escenas que EXISTEN en video stocks
     
-    EJEMPLOS DE KEYWORDS BUENAS vs MALAS:
+    ❌ NO HACER:
+    - Keywords de 1 palabra ("students", "university") 
+    - Conceptos abstractos ("education", "learning")
+    - Términos técnicos que no se ven ("algorithm", "database")
+    - Palabras en español
     
-    ❌ GENÉRICAS (EVITAR):
-    - "students", "university", "college" (muy amplias)
-    - "education", "learning" (muy abstractas)
+    ═══════════════════════════════════════════════════════════════
+    🎓 ANÁLISIS CONTEXTUAL POR CATEGORÍA ACADÉMICA
+    ═══════════════════════════════════════════════════════════════
     
-    ✅ ESPECÍFICAS (USAR):
-    - "computer science students", "programming classroom", "coding laptop"
-    - "university registration desk", "students enrollment line"
-    - "exam preparation library", "students studying laptop"
-    - "graduation ceremony caps", "university campus entrance"
-    - "classroom technology", "students presentation"
+    📝 INSCRIPCIONES / RETIROS / TRÁMITES:
+       → "university registration desk queue"
+       → "students filling admission forms"
+       → "administrative office documents"
+       → "college enrollment line people"
+       
+    🎒 INICIO DE CLASES / VUELTA A CLASES:
+       → "students walking campus backpacks"
+       → "college entrance students arriving"
+       → "university building exterior students"
+       → "young people entering school"
+       
+    💻 FICCT / COMPUTACIÓN / TECNOLOGÍA:
+       → "computer science students coding"
+       → "programming classroom laptops"
+       → "IT lab students working"
+       → "software development students"
+       
+    📚 CLASES / AULAS / LABORATORIOS:
+       → "university lecture students listening"
+       → "classroom students taking notes"
+       → "professor teaching whiteboard"
+       → "college seminar discussion"
+       
+    📖 EXÁMENES / ESTUDIAR / BIBLIOTECA:
+       → "students studying library books"
+       → "exam preparation focused students"
+       → "college library reading desk"
+       → "students notes laptop studying"
+       
+    🎉 EVENTOS / CONFERENCIAS / SEMINARIOS:
+       → "university auditorium conference audience"
+       → "academic seminar presentation speaker"
+       → "students event gathering campus"
+       → "graduation ceremony caps celebration"
+       
+    🏫 CAMPUS / INSTALACIONES:
+       → "university campus building exterior"
+       → "college courtyard students walking"
+       → "modern university architecture"
+       → "academic building entrance students"
+       
+    🎓 GRADUACIÓN / LOGROS:
+       → "graduation ceremony caps throwing"
+       → "students celebrating diploma"
+       → "university graduate proud family"
+       
+    ⚠️ PROBLEMAS / DENUNCIAS (si el tema es sensible pero académico):
+       → "students protest university campus"
+       → "academic meeting discussion serious"
+       → "university administration office"
+       
+    ═══════════════════════════════════════════════════════════════
+    💡 EJEMPLOS DE ANÁLISIS CORRECTO
+    ═══════════════════════════════════════════════════════════════
     
-    ANÁLISIS POR TEMA:
-    - Si habla de FICCT/computación → "computer lab", "coding students", "IT classroom"
-    - Si habla de inscripciones → "registration desk", "students enrollment", "university admission"
-    - Si habla de retiro de materias → "students consulting", "academic advising", "university office"
-    - Si habla de exámenes → "students studying", "exam preparation", "library study"
-    - Si habla de clases → "university lecture", "classroom students", "professor teaching"
-    - Si habla de eventos → "university event", "students gathering", "campus activity"
-    - Si habla de graduación → "graduation ceremony", "university caps", "diploma celebration"
-    - Si habla de tecnología/IA → "artificial intelligence", "technology students", "computer science"
+    INPUT: "La FICCT habilita inscripciones la próxima semana"
     
-    Texto a analizar: "{texto}"
+    ❌ MAL:
+    - "students" (muy genérico)
+    - "university registration" (demasiado amplio)
     
-    Responde SOLO con un JSON:
+    ✅ BIEN:
+    - "university registration desk queue students"
+    - "college admission office documents forms"
+    - "students filling enrollment papers desk"
+    - "administrative office line waiting people"
+    - "registration counter students documents"
+    
+    ---
+    
+    INPUT: "Vuelven las clases presenciales en UAGRM"
+    
+    ❌ MAL:
+    - "classroom" (sin contexto)
+    - "students university" (muy básico)
+    
+    ✅ BIEN:
+    - "students walking campus backpacks morning"
+    - "college entrance students arriving happy"
+    - "university building exterior students entering"
+    - "young people campus path walking"
+    - "students greeting campus friends reunion"
+    
+    ---
+    
+    INPUT: "Conferencia sobre Inteligencia Artificial en FICCT"
+    
+    ❌ MAL:
+    - "artificial intelligence" (no visual)
+    - "conference room" (muy genérico)
+    
+    ✅ BIEN:
+    - "university auditorium conference speaker presentation"
+    - "academic seminar audience listening attentive"
+    - "technology conference projection screen students"
+    - "computer science lecture university"
+    - "students event technology discussion"
+    
+    ═══════════════════════════════════════════════════════════════
+    🎬 CONTENIDO A ANALIZAR
+    ═══════════════════════════════════════════════════════════════
+    
+    Texto: "{texto}"
+    
+    ═══════════════════════════════════════════════════════════════
+    📤 FORMATO DE RESPUESTA (JSON)
+    ═══════════════════════════════════════════════════════════════
+    
+    Debes responder ÚNICAMENTE con este JSON (sin markdown, sin explicaciones):
+    
     {{
-      "keywords": ["keyword específica 1", "keyword específica 2", "keyword específica 3"],
-      "razon": "Breve explicación de por qué elegiste estas keywords"
+      "categoria_detectada": "inscripciones|clases|eventos|campus|examenes|tecnologia|graduacion|otro",
+      "keywords": [
+        "keyword específica de 3-5 palabras",
+        "keyword específica de 3-5 palabras",
+        "keyword específica de 3-5 palabras",
+        "keyword específica de 3-5 palabras",
+        "keyword específica de 3-5 palabras"
+      ],
+      "razon": "Breve explicación de por qué elegiste estas keywords (1-2 líneas)",
+      "scene_description": "Descripción en 1 línea de qué se debería VER en el video"
     }}
     
-    IMPORTANTE: 
-    - NO uses keywords genéricas como "students", "university" solas
-    - SÍ combina palabras para ser específico: "computer science students"
-    - Piensa: "¿Qué video de Pexels representaría mejor este tema?"
+    ═══════════════════════════════════════════════════════════════
+    ⚡ IMPORTANTE:
+    - Genera EXACTAMENTE 5 keywords
+    - Cada keyword debe tener 3-5 palabras
+    - Todas en INGLÉS
+    - Enfocadas en LO QUE SE VE (visuales)
+    - Sin keywords repetidas o muy similares
+    ═══════════════════════════════════════════════════════════════
     """
     
     try:
+        print("🔍 Generando keywords mejoradas con IA...")
         response = model.generate_content(prompt_keywords)
         response_text = response.text.strip()
+        
+        # Limpiar markdown si existe
         response_text = response_text.replace('```json\n', '').replace('```\n', '').replace('```', '').strip()
         
         resultado = json.loads(response_text)
-        keywords = resultado.get("keywords", ["university students", "college campus", "education"])
+        
+        # Extraer datos
+        categoria = resultado.get("categoria_detectada", "otro")
+        keywords = resultado.get("keywords", [])
         razon = resultado.get("razon", "")
+        scene_desc = resultado.get("scene_description", "")
         
-        print(f"🔍 Keywords extraídas: {keywords}")
+        print(f"✅ Categoría detectada: {categoria}")
+        print(f"🔍 Keywords generadas:")
+        for i, kw in enumerate(keywords, 1):
+            print(f"   {i}. {kw}")
         print(f"💡 Razón: {razon}")
+        print(f"🎬 Escena esperada: {scene_desc}")
         
-        # Validar que no sean muy genéricas
+        # Validación: asegurar que las keywords no sean muy cortas
         keywords_validadas = []
         for kw in keywords[:5]:  # Máximo 5
-            # Si la keyword es muy corta (1 palabra), agregar contexto
-            if len(kw.split()) == 1 and kw.lower() in ['students', 'university', 'college', 'education']:
-                print(f"⚠️ Keyword muy genérica detectada: '{kw}', agregando contexto...")
-                kw = f"{kw} campus"
+            palabras = kw.split()
+            
+            # Si la keyword tiene menos de 2 palabras, agregar contexto
+            if len(palabras) < 2:
+                print(f"⚠️ Keyword muy corta: '{kw}', expandiendo...")
+                # Agregar contexto según categoría
+                if categoria == "inscripciones":
+                    kw = f"{kw} registration desk"
+                elif categoria == "clases":
+                    kw = f"{kw} classroom students"
+                elif categoria == "campus":
+                    kw = f"{kw} university campus"
+                else:
+                    kw = f"{kw} university students"
+                print(f"   → Expandida a: '{kw}'")
+            
             keywords_validadas.append(kw)
         
-        return keywords_validadas[:5]
+        # Fallback: Si no se generaron suficientes keywords
+        if len(keywords_validadas) < 3:
+            print("⚠️ Pocas keywords generadas, agregando fallbacks por categoría...")
+            fallbacks = {
+                "inscripciones": ["university registration office", "students enrollment desk", "college admission forms"],
+                "clases": ["university classroom students", "college lecture students listening", "students taking notes class"],
+                "eventos": ["university auditorium conference", "academic seminar students", "college event gathering"],
+                "campus": ["university campus students walking", "college building exterior", "students campus path"],
+                "examenes": ["students studying library desk", "exam preparation focused students", "college library reading"],
+                "tecnologia": ["computer lab students working", "programming students coding", "IT classroom laptops"],
+                "graduacion": ["graduation ceremony caps celebration", "university graduate proud", "students celebrating diploma"]
+            }
+            
+            categoria_fallback = fallbacks.get(categoria, fallbacks["campus"])
+            keywords_validadas.extend(categoria_fallback[:5 - len(keywords_validadas)])
         
+        return keywords_validadas[:5]  # Retornar exactamente 5 keywords
+        
+    except json.JSONDecodeError as e:
+        print(f"⚠️ Error al parsear JSON: {e}")
+        print(f"   Respuesta recibida: {response.text[:200]}")
+        # Fallback genérico mejorado
+        return [
+            "university campus students walking backpacks",
+            "college classroom students learning",
+            "academic building entrance students arriving",
+            "students studying library desk focused",
+            "university auditorium conference presentation"
+        ]
     except Exception as e:
         print(f"⚠️ Error al extraer keywords: {e}")
-        # Fallback mejorado: keywords más específicas por defecto
-        return ["university campus students", "college classroom technology", "academic study library"]
+        # Fallback genérico mejorado
+        return [
+            "university students campus walking",
+            "college classroom lecture students",
+            "academic environment students learning",
+            "students studying desk focused",
+            "university building students entrance"
+        ]
+
+
+def validar_calidad_keywords(keywords: list) -> dict:
+    """
+    Analiza la calidad de las keywords generadas
+    Retorna métricas de calidad
+    """
+    
+    metricas = {
+        "total": len(keywords),
+        "promedio_palabras": 0,
+        "keywords_especificas": 0,  # 3+ palabras
+        "keywords_genericas": 0,    # 1-2 palabras
+        "calidad": "BAJA"
+    }
+    
+    total_palabras = 0
+    
+    for kw in keywords:
+        palabras = len(kw.split())
+        total_palabras += palabras
+        
+        if palabras >= 3:
+            metricas["keywords_especificas"] += 1
+        else:
+            metricas["keywords_genericas"] += 1
+    
+    metricas["promedio_palabras"] = round(total_palabras / len(keywords), 1) if keywords else 0
+    
+    # Determinar calidad
+    if metricas["promedio_palabras"] >= 3.5 and metricas["keywords_especificas"] >= 4:
+        metricas["calidad"] = "ALTA"
+    elif metricas["promedio_palabras"] >= 2.5 and metricas["keywords_especificas"] >= 3:
+        metricas["calidad"] = "MEDIA"
+    else:
+        metricas["calidad"] = "BAJA"
+    
+    return metricas        
 
 def buscar_video_pexels_inteligente(keywords: list, orientation: str = "portrait") -> list:
     """
-    🆕 Busca videos en Pexels con estrategia de fallback
+    🆕 VERSIÓN MEJORADA: Busca videos en Pexels con estrategia de fallback
     
-    1. Intenta buscar con keywords específicas
-    2. Si no encuentra, usa versiones simplificadas
-    3. Si aún no encuentra, usa keywords genéricas de respaldo
+    MEJORAS:
+    ✅ Validación de calidad de keywords
+    ✅ Múltiples intentos por keyword (completa, simplificada, primera palabra)
+    ✅ Fallback genérico si no encuentra suficientes videos
+    ✅ Logging detallado del proceso
+    ✅ Métricas de calidad
     
     Args:
-        keywords: Lista de keywords específicas
-        orientation: "portrait" para TikTok
+        keywords: Lista de keywords específicas generadas por IA
+        orientation: "portrait" para TikTok, "landscape" para otros
     
     Returns:
-        Lista de URLs de videos encontrados
+        Lista de URLs de videos encontrados (mínimo 2, máximo 5)
     """
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 🆕 PASO 1: Validar calidad de keywords recibidas
+    # ═══════════════════════════════════════════════════════════════
+    metricas = validar_calidad_keywords(keywords)
+    
+    print(f"\n{'='*70}")
+    print(f"📊 MÉTRICAS DE CALIDAD DE KEYWORDS")
+    print(f"{'='*70}")
+    print(f"   📝 Total de keywords: {metricas['total']}")
+    print(f"   📏 Promedio de palabras: {metricas['promedio_palabras']}")
+    print(f"   ✅ Keywords específicas (3+ palabras): {metricas['keywords_especificas']}")
+    print(f"   ⚠️  Keywords genéricas (1-2 palabras): {metricas['keywords_genericas']}")
+    print(f"   🎯 Calidad general: {metricas['calidad']}")
+    
+    if metricas['calidad'] == 'ALTA':
+        print(f"   💚 Excelente! Alta probabilidad de encontrar videos relevantes")
+    elif metricas['calidad'] == 'MEDIA':
+        print(f"   💛 Aceptable. Es posible que necesites fallbacks")
+    else:
+        print(f"   ❤️  Baja calidad. Revisa el prompt del LLM")
+    
+    print(f"{'='*70}\n")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 🆕 PASO 2: Búsqueda inteligente con múltiples intentos
+    # ═══════════════════════════════════════════════════════════════
     video_urls = []
+    intentos_totales = 0
+    exitos = 0
     
+    print(f"🔍 Iniciando búsqueda en Pexels (orientación: {orientation})...\n")
     
-    for keyword in keywords[:2]:
-        # Intento 1: Keyword completa
+    for i, keyword in enumerate(keywords, 1):
+        print(f"{'─'*70}")
+        print(f"🔎 Keyword {i}/{len(keywords)}: '{keyword}'")
+        print(f"{'─'*70}")
+        
+        # ═══════════════════════════════════════════════════════════════
+        # INTENTO 1: Buscar con keyword completa
+        # ═══════════════════════════════════════════════════════════════
+        intentos_totales += 1
+        print(f"   [Intento 1/3] Buscando con keyword completa...")
         url = buscar_video_pexels(keyword, orientation)
+        
         if url:
             video_urls.append(url)
-            print(f"✅ Video encontrado con: '{keyword}'")
-            continue
+            exitos += 1
+            print(f"   ✅ ¡Video encontrado! ({len(video_urls)} videos totales)")
+            continue  # Pasar a la siguiente keyword
+        else:
+            print(f"   ❌ No se encontró video")
         
-        # Intento 2: Si tiene más de 2 palabras, probar con las primeras 2
+        # ═══════════════════════════════════════════════════════════════
+        # INTENTO 2: Si tiene más de 2 palabras, probar con primeras 2
+        # ═══════════════════════════════════════════════════════════════
         palabras = keyword.split()
+        
         if len(palabras) > 2:
             keyword_simplificada = " ".join(palabras[:2])
-            print(f"🔄 Intentando versión simplificada: '{keyword_simplificada}'")
+            intentos_totales += 1
+            print(f"   [Intento 2/3] Simplificando a: '{keyword_simplificada}'")
             url = buscar_video_pexels(keyword_simplificada, orientation)
+            
             if url:
                 video_urls.append(url)
-                print(f"✅ Video encontrado con versión simplificada")
+                exitos += 1
+                print(f"   ✅ ¡Video encontrado con versión simplificada! ({len(video_urls)} videos totales)")
                 continue
+            else:
+                print(f"   ❌ No se encontró video")
         
-        # Intento 3: Usar solo la primera palabra si es descriptiva
-        if len(palabras) > 0 and palabras[0].lower() not in ['the', 'a', 'an']:
+        # ═══════════════════════════════════════════════════════════════
+        # INTENTO 3: Usar solo la primera palabra (si es descriptiva)
+        # ═══════════════════════════════════════════════════════════════
+        if len(palabras) > 0 and palabras[0].lower() not in ['the', 'a', 'an', 'of', 'in']:
             primera_palabra = palabras[0]
-            print(f"🔄 Intentando primera palabra: '{primera_palabra}'")
+            intentos_totales += 1
+            print(f"   [Intento 3/3] Última opción, primera palabra: '{primera_palabra}'")
             url = buscar_video_pexels(primera_palabra, orientation)
+            
             if url:
                 video_urls.append(url)
-                print(f"✅ Video encontrado con primera palabra")
+                exitos += 1
+                print(f"   ✅ ¡Video encontrado con primera palabra! ({len(video_urls)} videos totales)")
                 continue
+            else:
+                print(f"   ❌ No se encontró video")
         
-        print(f"⚠️ No se encontró video para: '{keyword}'")
+        print(f"   ⚠️  Keyword '{keyword}' no generó resultados en ningún intento")
     
-    # Fallback final: Si no encontró suficientes videos
+    print(f"\n{'─'*70}")
+    print(f"📊 Resumen de búsqueda:")
+    print(f"   • Keywords procesadas: {len(keywords)}")
+    print(f"   • Intentos realizados: {intentos_totales}")
+    print(f"   • Videos encontrados: {exitos}")
+    print(f"   • Tasa de éxito: {(exitos/len(keywords)*100):.1f}%")
+    print(f"{'─'*70}\n")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 🆕 PASO 3: Aplicar fallback si no hay suficientes videos
+    # ═══════════════════════════════════════════════════════════════
     if len(video_urls) < 2:
-        print("🔄 Aplicando fallback genérico...")
-        fallback_keywords = ["university campus", "students classroom", "college education"]
-        for fb_keyword in fallback_keywords:
+        print(f"⚠️  ADVERTENCIA: Solo se encontraron {len(video_urls)} videos")
+        print(f"🔄 Aplicando estrategia de fallback con keywords genéricas...")
+        print(f"{'─'*70}\n")
+        
+        # Keywords de respaldo mejoradas (más específicas que antes)
+        fallback_keywords = [
+            "university campus students walking backpacks",
+            "college classroom students learning lecture",
+            "students studying library desk focused",
+            "university building entrance students arriving",
+            "academic environment students technology"
+        ]
+        
+        for i, fb_keyword in enumerate(fallback_keywords, 1):
+            # Si ya tenemos 3 videos, detenerse
             if len(video_urls) >= 3:
+                print(f"✅ Objetivo alcanzado: {len(video_urls)} videos encontrados\n")
                 break
+            
+            print(f"🔄 Fallback {i}: '{fb_keyword}'")
             url = buscar_video_pexels(fb_keyword, orientation)
-            if url and url not in video_urls:
+            
+            if url and url not in video_urls:  # Evitar duplicados
                 video_urls.append(url)
-                print(f"✅ Video fallback agregado: '{fb_keyword}'")
+                print(f"   ✅ Video fallback agregado ({len(video_urls)} videos totales)\n")
+            else:
+                if url:
+                    print(f"   ⚠️  Video duplicado, omitiendo...\n")
+                else:
+                    print(f"   ❌ No se encontró video fallback\n")
+        
+        if len(video_urls) < 2:
+            print(f"❌ ERROR CRÍTICO: No se pudo alcanzar el mínimo de 2 videos")
+            print(f"💡 Sugerencias:")
+            print(f"   1. Verifica tu PEXELS_API_KEY en .env")
+            print(f"   2. Revisa tu conexión a internet")
+            print(f"   3. Verifica que Pexels API esté disponible")
     
-    return video_urls        
+    # ═══════════════════════════════════════════════════════════════
+    # 🆕 PASO 4: Resumen final
+    # ═══════════════════════════════════════════════════════════════
+    print(f"\n{'='*70}")
+    print(f"🎬 RESULTADO FINAL DE BÚSQUEDA")
+    print(f"{'='*70}")
+    print(f"   ✅ Videos encontrados: {len(video_urls)}")
+    
+    if len(video_urls) > 0:
+        print(f"\n   📹 Lista de videos seleccionados:")
+        for i, url in enumerate(video_urls, 1):
+            # Extraer nombre del archivo de la URL
+            filename = url.split('/')[-1].split('?')[0] if '/' in url else 'video.mp4'
+            print(f"      {i}. {filename[:50]}...")
+    
+    print(f"{'='*70}\n")
+    
+    return video_urls     
 
 
 def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
