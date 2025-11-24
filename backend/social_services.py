@@ -330,9 +330,9 @@ def post_whatsapp_status(text: str, image_url: str = None):
     
 def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
     """
-    Sube video a TikTok como BORRADOR (Draft Mode)
+    🆕 Sube video a TikTok con Direct Post (video.publish)
     
-    ✅ Método confirmado que funciona: Content-Range
+    Publicación PRIVADA (SELF_ONLY) sin necesidad de aprobación
     """
     TIKTOK_TOKEN = os.getenv("TIKTOK_ACCESS_TOKEN")
     
@@ -344,33 +344,41 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
         logging.error(f"❌ Video no encontrado: {video_path}")
         return {"error": "Video no encontrado"}
     
-    logging.info(f"📤 Subiendo video a TikTok como BORRADOR: {text[:30]}...")
+    logging.info(f"📤 Subiendo video a TikTok (PRIVADO): {text[:30]}...")
     
     try:
-        # 🔥 IMPORTANTE: Leer el archivo PRIMERO para obtener el tamaño REAL
+        # Leer el archivo de video
         logging.info("📊 Leyendo archivo de video...")
         with open(video_path, 'rb') as video_file:
             video_bytes = video_file.read()
         
-        video_size_real = len(video_bytes)
-        logging.info(f"✅ Tamaño del video: {video_size_real} bytes ({video_size_real / (1024*1024):.2f} MB)")
+        video_size = len(video_bytes)
+        logging.info(f"✅ Tamaño del video: {video_size} bytes ({video_size / (1024*1024):.2f} MB)")
         
-        # PASO 1: Inicializar subida con el tamaño REAL
-        logging.info("TikTok - Paso 1: Inicializando subida...")
+        # PASO 1: Inicializar subida con Direct Post (video.publish)
+        logging.info("TikTok - Paso 1: Inicializando Direct Post...")
         
-        upload_init_url = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
+        upload_init_url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
         
         headers = {
             "Authorization": f"Bearer {TIKTOK_TOKEN}",
             "Content-Type": "application/json; charset=UTF-8"
         }
         
-        # 🔥 Usar el tamaño REAL del archivo en memoria
+        # 🔥 PAYLOAD CON post_info (Direct Post)
         payload = {
+            "post_info": {
+                "title": text[:150],  # TikTok permite máximo 150 caracteres
+                "privacy_level": "SELF_ONLY",  # SELF_ONLY = Solo yo (privado)
+                "disable_duet": False,
+                "disable_comment": False,
+                "disable_stitch": False,
+                "video_cover_timestamp_ms": 1000
+            },
             "source_info": {
                 "source": "FILE_UPLOAD",
-                "video_size": video_size_real,
-                "chunk_size": video_size_real,
+                "video_size": video_size,
+                "chunk_size": video_size,
                 "total_chunk_count": 1
             }
         }
@@ -389,31 +397,24 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
         
         logging.info(f"✅ Publish ID: {publish_id}")
         
-        # PASO 2: Subir el video con Content-Range
+        # PASO 2: Subir el video
         logging.info("TikTok - Paso 2: Subiendo archivo...")
         
-        # 🔥 MÉTODO QUE FUNCIONA (confirmado por test)
         upload_headers = {
             "Content-Type": "video/mp4",
-            "Content-Length": str(video_size_real),
-            "Content-Range": f"bytes 0-{video_size_real-1}/{video_size_real}"
+            "Content-Length": str(video_size),
+            "Content-Range": f"bytes 0-{video_size-1}/{video_size}"
         }
-        
-        logging.info(f"📤 Headers de subida:")
-        logging.info(f"   Content-Type: video/mp4")
-        logging.info(f"   Content-Length: {video_size_real}")
-        logging.info(f"   Content-Range: bytes 0-{video_size_real-1}/{video_size_real}")
         
         response_upload = httpx.put(
             upload_url,
             content=video_bytes,
             headers=upload_headers,
-            timeout=180.0  # 3 minutos para archivos grandes
+            timeout=180.0
         )
         
         logging.info(f"📊 Status de subida: {response_upload.status_code}")
         
-        # TikTok puede devolver 200, 201 o 204 para éxito
         if response_upload.status_code not in [200, 201, 204]:
             logging.error(f"❌ Error al subir video:")
             logging.error(f"   Status: {response_upload.status_code}")
@@ -426,15 +427,14 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
                 "detalles": response_upload.text[:500] if response_upload.text else "Sin detalles"
             }
         
-        logging.info(f"✅ Video subido exitosamente ({video_size_real} bytes)")
+        logging.info(f"✅ Video subido exitosamente")
         
         # PASO 3: Esperar procesamiento
         logging.info("TikTok - Paso 3: Esperando procesamiento...")
-        
         import time
         time.sleep(5)
         
-        # PASO 4: Verificar estado (opcional)
+        # PASO 4: Verificar estado de publicación
         try:
             status_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
             
@@ -453,37 +453,46 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
                 status_data = response_status.json()
                 upload_status = status_data.get("data", {}).get("status", "unknown")
                 logging.info(f"📊 Estado del video: {upload_status}")
+                
+                # Obtener info adicional
+                publicacion_info = status_data.get("data", {})
+                
         except Exception as e:
             logging.warning(f"⚠️ No se pudo verificar estado: {e}")
+            publicacion_info = {}
         
-        logging.info(f"✅ Video subido como BORRADOR en TikTok")
+        logging.info(f"✅ Video publicado PRIVADO en TikTok (@limberg818)")
         
         return {
             "publish_id": publish_id,
-            "status": "uploaded_as_draft",
-            "mode": "DRAFT (borrador)",
-            "size_bytes": video_size_real,
-            "size_mb": round(video_size_real / (1024*1024), 2),
-            "mensaje": "✅ Video subido como borrador en TikTok",
-            "instrucciones": [
-                "1. Abre la app de TikTok en tu móvil (@limberg818)",
-                "2. Toca el botón '+' (crear video)",
-                "3. Selecciona 'Borradores' o 'Drafts'",
-                "4. Elige el video que acabas de subir",
-                "5. Agrega esta descripción:",
-                f"   {text}",
-                "6. Selecciona privacidad (Privado/Amigos/Público)",
-                "7. Toca 'Publicar'"
-            ],
-            "caption_sugerido": text,
-            "nota": "El video está en tus borradores de TikTok. NO está publicado aún.",
-            "cuenta": "@limberg818"
+            "status": "published_private",
+            "privacy": privacy,
+            "mode": "Direct Post (video.publish)",
+            "size_mb": round(video_size / (1024*1024), 2),
+            "mensaje": "✅ Video publicado PRIVADO en TikTok (Solo tú puedes verlo)",
+            "descripcion": text,
+            "cuenta": "@limberg818",
+            "visibilidad": "PRIVADO (Solo yo)",
+            "nota": "El video está publicado pero SOLO TÚ puedes verlo. Nadie más puede acceder a él.",
+            "detalles": publicacion_info
         }
         
     except httpx.HTTPStatusError as e:
         try:
             error_data = e.response.json()
             logging.error(f"❌ Error TikTok API [{e.response.status_code}]: {error_data}")
+            
+            # Manejo de errores específicos
+            error_code = error_data.get("error", {}).get("code", "")
+            
+            if error_code == "unaudited_client_can_only_post_to_private_accounts":
+                return {
+                    "error": "app_not_approved",
+                    "mensaje": "⚠️ Tu app no está aprobada por TikTok. Solo puedes publicar en cuentas privadas.",
+                    "solucion": "Usa SELF_ONLY para publicar videos privados (Solo tú)",
+                    "detalles": error_data
+                }
+            
             return {
                 "error": error_data.get("error", {}).get("code", "api_error"),
                 "mensaje": error_data.get("error", {}).get("message", "Error de TikTok API"),
