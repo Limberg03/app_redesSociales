@@ -418,3 +418,380 @@ def test_post_tiktok(request: schemas.TestPostRequest):
         "publicacion": result,
         "mensaje": "✅ Video generado y publicado en TikTok (privado)"
     }
+
+
+
+@app.post("/api/posts/publish-multi", response_model=schemas.MultiNetworkPostResponse)
+def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest):
+    """
+    🆕 ENDPOINT PRINCIPAL: Publica en múltiples redes sociales simultáneamente
+    
+    Flujo:
+    1. Valida que el contenido sea académico
+    2. Adapta el contenido para cada red social seleccionada
+    3. Genera recursos necesarios (imágenes, videos)
+    4. Publica en cada red
+    5. Retorna resumen de publicaciones exitosas/fallidas
+    
+    Redes soportadas:
+    - facebook (solo texto)
+    - instagram (texto + imagen generada)
+    - linkedin (texto profesional)
+    - whatsapp (estado con imagen)
+    - tiktok (video generado con IA)
+    
+    Ejemplo de uso:
+    ```json
+    {
+        "text": "La FICCT anuncia retorno a clases presenciales este miércoles",
+        "target_networks": ["facebook", "instagram", "tiktok"]
+    }
+    ```
+    """
+    import time
+    
+    inicio = time.time()
+    
+    print("\n" + "="*70)
+    print("🚀 PUBLICACIÓN MULTI-RED INICIADA")
+    print("="*70)
+    print(f"📝 Contenido: {request.text[:80]}...")
+    print(f"🎯 Redes objetivo: {', '.join(request.target_networks)}")
+    print("="*70 + "\n")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 🔍 PASO 1: VALIDAR CONTENIDO ACADÉMICO (una sola vez)
+    # ═══════════════════════════════════════════════════════════════
+    print("🔍 [PASO 1/5] Validando contenido académico...")
+    validacion = llm_service.validar_contenido_academico(request.text)
+    
+    if not validacion.get("es_academico", False):
+        raise HTTPException(
+            status_code=400, 
+            detail={
+                "error": "contenido_no_academico",
+                "mensaje": "❌ Este contenido no es apropiado para publicación académica.",
+                "razon": validacion.get('razon', ''),
+                "redes_solicitadas": request.target_networks
+            }
+        )
+    
+    print(f"✅ Contenido validado: {validacion.get('razon')}\n")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 📊 PASO 2: ADAPTAR CONTENIDO PARA CADA RED (en paralelo)
+    # ═══════════════════════════════════════════════════════════════
+    print("🔄 [PASO 2/5] Adaptando contenido para cada red social...")
+    
+    adaptaciones = {}
+    redes_validas = []
+    
+    for red in request.target_networks:
+        if red not in llm_service.PROMPTS_POR_RED:
+            print(f"   ⚠️  Red '{red}' no soportada, omitiendo...")
+            continue
+        
+        print(f"   🔄 Adaptando para {red.upper()}...")
+        adaptacion = llm_service.adaptar_contenido(
+            titulo=request.text[:50],
+            contenido=request.text,
+            red_social=red
+        )
+        
+        if "error" in adaptacion:
+            print(f"   ❌ Error en {red}: {adaptacion['error']}")
+            adaptaciones[red] = {"error": adaptacion["error"]}
+        else:
+            print(f"   ✅ {red.upper()} adaptado")
+            adaptaciones[red] = adaptacion
+            redes_validas.append(red)
+    
+    if not redes_validas:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "no_valid_networks",
+                "mensaje": "No se pudo adaptar contenido para ninguna red válida",
+                "redes_solicitadas": request.target_networks
+            }
+        )
+    
+    print(f"\n✅ Adaptaciones completadas: {len(redes_validas)} redes\n")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 🎨 PASO 3: GENERAR RECURSOS (imágenes, videos)
+    # ═══════════════════════════════════════════════════════════════
+    print("🎨 [PASO 3/5] Generando recursos multimedia...")
+    
+    recursos = {
+        "imagen_instagram": None,
+        "imagen_whatsapp": None,
+        "video_tiktok": None
+    }
+    
+    # Imagen para Instagram (si está en la lista)
+    if "instagram" in redes_validas and "instagram" in adaptaciones:
+        print("   🎨 Generando imagen para Instagram...")
+        prompt_img = adaptaciones["instagram"].get(
+            "suggested_image_prompt", 
+            f"Universidad UAGRM: {request.text[:100]}"
+        )
+        recursos["imagen_instagram"] = llm_service.generar_imagen_ia(prompt_img)
+        print(f"   ✅ Imagen Instagram generada")
+    
+    # Imagen para WhatsApp Status (si está en la lista)
+    if "whatsapp" in redes_validas:
+        print("   🎨 Generando imagen para WhatsApp Status...")
+        prompt_img = f"Universidad UAGRM: {request.text[:100]}"
+        recursos["imagen_whatsapp"] = llm_service.generar_imagen_ia_base64(prompt_img)
+        print(f"   ✅ Imagen WhatsApp generada")
+    
+    # Video para TikTok (si está en la lista)
+    if "tiktok" in redes_validas and "tiktok" in adaptaciones:
+        print("   🎬 Generando video para TikTok...")
+        texto_adaptado = adaptaciones["tiktok"].get("text", request.text)
+        recursos["video_tiktok"] = llm_service.generar_video_tiktok(
+            texto_adaptado, 
+            adaptaciones["tiktok"]
+        )
+        if recursos["video_tiktok"]:
+            print(f"   ✅ Video TikTok generado")
+        else:
+            print(f"   ❌ Error generando video TikTok")
+            redes_validas.remove("tiktok")
+    
+    print(f"\n✅ Recursos multimedia generados\n")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 📤 PASO 4: PUBLICAR EN CADA RED SOCIAL
+    # ═══════════════════════════════════════════════════════════════
+    print("📤 [PASO 4/5] Publicando en redes sociales...")
+    
+    resultados = {}
+    exitosos = 0
+    fallidos = 0
+    
+    for red in redes_validas:
+        print(f"\n   📤 Publicando en {red.upper()}...")
+        
+        try:
+            adaptacion = adaptaciones[red]
+            texto_adaptado = adaptacion.get("text", request.text)
+            
+            # Agregar hashtags si existen
+            if "hashtags" in adaptacion and adaptacion["hashtags"]:
+                hashtags_str = " ".join(adaptacion["hashtags"])
+                if not any(tag in texto_adaptado for tag in adaptacion["hashtags"]):
+                    texto_adaptado = f"{texto_adaptado}\n\n{hashtags_str}"
+            
+            # ─────────────────────────────────────────────────────
+            # 🔵 FACEBOOK (solo texto)
+            # ─────────────────────────────────────────────────────
+            if red == "facebook":
+                result = social_services.post_to_facebook(
+                    text=texto_adaptado,
+                    image_url=None
+                )
+                
+                if "error" in result:
+                    resultados["facebook"] = {
+                        "estado": "error",
+                        "error": result["error"],
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ Facebook falló: {result['error']}")
+                else:
+                    post_id = result.get("id") or result.get("post_id")
+                    link = f"https://www.facebook.com/{post_id.replace('_', '/posts/')}" if post_id else None
+                    
+                    resultados["facebook"] = {
+                        "estado": "exitoso",
+                        "id": post_id,
+                        "link": link,
+                        "adaptacion": adaptacion
+                    }
+                    exitosos += 1
+                    print(f"   ✅ Facebook publicado: {link}")
+            
+            # ─────────────────────────────────────────────────────
+            # 📸 INSTAGRAM (texto + imagen)
+            # ─────────────────────────────────────────────────────
+            elif red == "instagram":
+                if not recursos["imagen_instagram"]:
+                    resultados["instagram"] = {
+                        "estado": "error",
+                        "error": "No se pudo generar imagen",
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ Instagram falló: sin imagen")
+                    continue
+                
+                result = social_services.post_to_instagram(
+                    text=texto_adaptado,
+                    image_url=recursos["imagen_instagram"]
+                )
+                
+                if "error" in result:
+                    resultados["instagram"] = {
+                        "estado": "error",
+                        "error": result["error"],
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ Instagram falló: {result['error']}")
+                else:
+                    resultados["instagram"] = {
+                        "estado": "exitoso",
+                        "id": result.get("id"),
+                        "link": result.get("permalink"),
+                        "imagen_url": recursos["imagen_instagram"],
+                        "adaptacion": adaptacion
+                    }
+                    exitosos += 1
+                    print(f"   ✅ Instagram publicado: {result.get('permalink')}")
+            
+            # ─────────────────────────────────────────────────────
+            # 💼 LINKEDIN (texto profesional)
+            # ─────────────────────────────────────────────────────
+            elif red == "linkedin":
+                result = social_services.post_to_linkedin(text=texto_adaptado)
+                
+                if "error" in result:
+                    resultados["linkedin"] = {
+                        "estado": "error",
+                        "error": result["error"],
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ LinkedIn falló: {result['error']}")
+                else:
+                    post_urn = result.get("id", "")
+                    link = f"https://www.linkedin.com/feed/update/{post_urn}" if post_urn else None
+                    
+                    resultados["linkedin"] = {
+                        "estado": "exitoso",
+                        "id": post_urn.split(":")[-1] if ":" in post_urn else post_urn,
+                        "link": link,
+                        "adaptacion": adaptacion
+                    }
+                    exitosos += 1
+                    print(f"   ✅ LinkedIn publicado: {link}")
+            
+            # ─────────────────────────────────────────────────────
+            # 💚 WHATSAPP STATUS (imagen + texto)
+            # ─────────────────────────────────────────────────────
+            elif red == "whatsapp":
+                if not recursos["imagen_whatsapp"]:
+                    resultados["whatsapp"] = {
+                        "estado": "error",
+                        "error": "No se pudo generar imagen",
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ WhatsApp falló: sin imagen")
+                    continue
+                
+                result = social_services.post_whatsapp_status(
+                    text=texto_adaptado,
+                    image_url=recursos["imagen_whatsapp"]
+                )
+                
+                if "error" in result:
+                    resultados["whatsapp"] = {
+                        "estado": "error",
+                        "error": result["error"],
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ WhatsApp falló: {result['error']}")
+                else:
+                    resultados["whatsapp"] = {
+                        "estado": "exitoso",
+                        "id": result.get("id"),
+                        "status": result.get("status"),
+                        "adaptacion": adaptacion
+                    }
+                    exitosos += 1
+                    print(f"   ✅ WhatsApp Status publicado")
+            
+            # ─────────────────────────────────────────────────────
+            # 🎵 TIKTOK (video generado)
+            # ─────────────────────────────────────────────────────
+            elif red == "tiktok":
+                if not recursos["video_tiktok"]:
+                    resultados["tiktok"] = {
+                        "estado": "error",
+                        "error": "No se pudo generar video",
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ TikTok falló: sin video")
+                    continue
+                
+                result = social_services.post_to_tiktok(
+                    text=texto_adaptado,
+                    video_path=recursos["video_tiktok"],
+                    privacy="SELF_ONLY"
+                )
+                
+                # Limpiar video temporal
+                if recursos["video_tiktok"] and os.path.exists(recursos["video_tiktok"]):
+                    os.unlink(recursos["video_tiktok"])
+                
+                if "error" in result:
+                    resultados["tiktok"] = {
+                        "estado": "error",
+                        "error": result["error"],
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ TikTok falló: {result['error']}")
+                else:
+                    resultados["tiktok"] = {
+                        "estado": "exitoso",
+                        "publish_id": result.get("publish_id"),
+                        "mode": result.get("mode"),
+                        "instrucciones": result.get("instrucciones"),
+                        "adaptacion": adaptacion
+                    }
+                    exitosos += 1
+                    print(f"   ✅ TikTok publicado como borrador")
+        
+        except Exception as e:
+            resultados[red] = {
+                "estado": "error",
+                "error": f"Excepción: {str(e)}",
+                "adaptacion": adaptacion
+            }
+            fallidos += 1
+            print(f"   ❌ {red.upper()} falló con excepción: {e}")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 📊 PASO 5: RESUMEN FINAL
+    # ═══════════════════════════════════════════════════════════════
+    tiempo_total = time.time() - inicio
+    
+    print("\n" + "="*70)
+    print("📊 [PASO 5/5] RESUMEN DE PUBLICACIONES")
+    print("="*70)
+    print(f"✅ Exitosos: {exitosos}")
+    print(f"❌ Fallidos: {fallidos}")
+    print(f"⏱️  Tiempo total: {tiempo_total:.1f} segundos")
+    print("="*70 + "\n")
+    
+    resumen = {
+        "total_redes": len(request.target_networks),
+        "redes_validas": len(redes_validas),
+        "exitosos": exitosos,
+        "fallidos": fallidos,
+        "tasa_exito": f"{(exitosos/len(redes_validas)*100):.1f}%" if redes_validas else "0%",
+        "tiempo_segundos": round(tiempo_total, 1)
+    }
+    
+    return {
+        "validacion": validacion,
+        "resultados": resultados,
+        "resumen": resumen
+    }    

@@ -368,7 +368,7 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
         # 🔥 PAYLOAD CON post_info (Direct Post)
         payload = {
             "post_info": {
-                "title": text[:150],  # TikTok permite máximo 150 caracteres
+                "title": text[:500],  # TikTok permite máximo 150 caracteres
                 "privacy_level": "SELF_ONLY",  # SELF_ONLY = Solo yo (privado)
                 "disable_duet": False,
                 "disable_comment": False,

@@ -879,7 +879,7 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
             FFMPEG_PATH, '-f', 'concat', '-safe', '0',
             '-i', concat_file.name,
              # 🔥 CAMBIO: De 1080x1920 a 720x1280
-             '-vf', f'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280',
+             '-vf', f'scale=540:960:force_original_aspect_ratio=increase,crop=540:960',
               '-t', str(duracion_total),
               '-c:v', 'libx264', '-preset', 'ultrafast',  # <- También cambiar 'fast' a 'ultrafast'
               '-y', temp_video
