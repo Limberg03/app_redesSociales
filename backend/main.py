@@ -335,6 +335,7 @@ def test_post_whatsapp_status(request: schemas.TestPostRequest):
 def test_post_tiktok(request: schemas.TestPostRequest):
     """ 
     Endpoint para publicar en TikTok (PRIVADO)
+    🆕 Ahora usa tts_text para audio limpio sin emojis
     """
     
     # 1. VALIDAR contenido académico
@@ -366,13 +367,19 @@ def test_post_tiktok(request: schemas.TestPostRequest):
     
     if "hashtags" in adaptacion and adaptacion["hashtags"]:
         hashtags_str = " ".join(adaptacion["hashtags"])
-        texto_adaptado = f"{texto_adaptado}\n\n{hashtags_str}"
+        # Solo agregar hashtags si no están ya en el texto
+        if not any(tag in texto_adaptado for tag in adaptacion["hashtags"]):
+            texto_adaptado = f"{texto_adaptado}\n\n{hashtags_str}"
     
     print(f"✅ Texto TikTok: {texto_adaptado[:100]}...")
     
+    if "tts_text" in adaptacion:
+        print(f"✅ Texto para audio (limpio): {adaptacion['tts_text'][:100]}...")
+    
     # 4. GENERAR VIDEO con IA
     print("🎬 [TikTok] Generando video con IA...")
-    video_path = llm_service.generar_video_tiktok(texto_adaptado)
+    # 🔥 CAMBIO: Pasar la adaptación completa para usar tts_text
+    video_path = llm_service.generar_video_tiktok(texto_adaptado, adaptacion)
 
     if not video_path:
         raise HTTPException(
@@ -405,7 +412,8 @@ def test_post_tiktok(request: schemas.TestPostRequest):
         "validacion": validacion,
         "adaptacion": adaptacion,
         "video_generado": {
-            "mensaje": "Video generado con Pexels + gTTS"
+            "mensaje": "Video generado con Pexels + gTTS",
+            "audio_usado": "tts_text limpio (sin emojis)" if "tts_text" in adaptacion else "texto limpiado automáticamente"
         },
         "publicacion": result,
         "mensaje": "✅ Video generado y publicado en TikTok (privado)"

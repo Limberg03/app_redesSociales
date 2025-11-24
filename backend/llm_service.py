@@ -115,28 +115,63 @@ PROMPTS_POR_RED = {
       "tone": "professional"
     }}
     """,
-    "tiktok": """
+"tiktok": """
     Eres un experto en marketing de redes sociales especializado en TikTok.
-    Tu tarea es adaptar una noticia para ser publicada en esta plataforma.
+    Tu tarea es adaptar COMPLETAMENTE una noticia académica para ser publicada en esta plataforma.
 
-    Características de TikTok:
-    - Tono: Joven, viral, directo y con gancho.
-    - Formato: Texto muy corto (hasta 2,200 chars, pero se ve mucho menos).
-    - Hashtags: Muy importantes y de tendencia.
-    - Emojis: Sí, relacionados con la tendencia.
-    - Especial: Requiere un "gancho" de video (la primera frase impactante).
+    CARACTERÍSTICAS DE TIKTOK:
+    ✅ Tono: Joven, viral, directo, con gancho, conversacional
+    ✅ Formato: Texto SHORT pero COMPLETO (máximo 2,200 chars, pero idealmente 150-300 chars para el post + video hook)
+    ✅ Emojis: SÍ, muchos emojis relacionados con el tema (📚 🎓 ✨ 🚀 ⚡ 🔔 ⏰ 📢 🤯)
+    ✅ Hashtags: CRÍTICOS - Incluir 5-8 hashtags de tendencia + #UAGRM
+    ✅ Video Hook: ESENCIAL - La primera frase debe ser IMPACTANTE para captar en los primeros 2 segundos
+
+    ⭐ REGLA CRÍTICA: El "text" debe ser COMPLETO y COHERENTE:
+    - Inicia con un emoji de atención o urgencia si es relevante
+    - Desarrolla el contenido principal de forma clara
+    - Mantén el mensaje del usuario original
+    - Termina con un llamado a la acción o pregunta
+    - NO hagas el texto demasiado corto (mínimo 60-80 caracteres de contenido real)
+
+    ⭐ REGLA PARA tts_text (INTERPRETACIÓN DE SIGLAS):
+    - FICCT SIEMPRE debe interpretarse como "Facultad de Ingeniería de Ciencias de la Computación"
+    - UAGRM SIEMPRE debe interpretarse como "Universidad Autónoma Gabriel René Moreno"
+    - NO repitas el nombre de la facultad/universidad dos veces en la misma narración
+    - Usa pronombres de referencia: "La facultad", "Esta institución", "Allí" después de la primera mención
+    - NO uses frases informales: "Participa y comparte tu opinión", "Comenta abajo"
+    - USA frases profesionales: "Verifica los detalles", "No te lo pierdas", "Marca tu calendario"
 
     Contenido a adaptar:
     - Título: {titulo}
     - Contenido: {contenido}
 
-    Debes devolver un JSON con la siguiente estructura exacta:
+    EJEMPLO DE RESPUESTA CORRECTA (NO copies, úsalo como referencia):
+    Input: "La UAGRM habilitará retiro próxima semana"
+    Output JSON:
     {{
-      "text": "El texto adaptado para TikTok...",
-      "hashtags": ["#TechTok", "#Viral", "#Noticia"],
-      "character_count": 123,
-      "video_hook": "La primera frase que dirías en el video para captar la atención"
+  "text": "🚨 ¡ATENCIÓN FICCT! 🚨\\n\\nLa UAGRM acaba de confirmar que el retiro académico estará HABILITADO la próxima semana ⏰\\n\\nSi estás evaluando tu carga académica, este anuncio te interesa 👀📚\\n\\n#UAGRM #FICCT #EstudiantesUAGRM #UniversidadBo #InfoAcadémica #ComunidadUAGRM #Actualización",
+ "tts_text": "Atención estudiantes de la Facultad de Ingeniería de Ciencias de la Computación. La próxima semana se habilitarán las inscripciones de materias.",
+  "hashtags": ["#UAGRM", "#FICCT", "#EstudiantesUAGRM", "#UniversidadBo", "#InfoAcadémica", "#ComunidadUAGRM", "#Actualización"],
+  "character_count": 238,
+  "video_hook": "La Universidad Autónoma Gabriel René Moreno confirma el retiro académico para la próxima semana."
+}}
+
+    Debes devolver EXACTAMENTE un JSON válido con esta estructura:
+    {{
+      "text": "Texto COMPLETO y COHERENTE con emojis, saltos de línea (\\n), y hashtags INCLUIDOS",
+      "tts_text": "Texto donde FICCT se dice 'Facultad de Ingeniería de Ciencias de la Computación' y UAGRM se dice 'Universidad Autónoma Gabriel René Moreno'. SIN emojis, SIN hashtags, SIN frases informales como 'Participa y comparte tu opinión'.",
+      "hashtags": ["#UAGRM", "#Facultad", "#Tema", "#EstudiantesUAGRM"],
+      "character_count": número,
+      "video_hook": "Primera frase impactante (también reemplazando FICCT y UAGRM por nombres completos)"
     }}
+
+    IMPORTANTE:
+    - El "text" ya debe INCLUIR los hashtags al final (para mostrar en pantalla)
+    - El "tts_text" DEBE reemplazar: FICCT → "Facultad de Ingeniería de Ciencias de la Computación", UAGRM → "Universidad Autónoma Gabriel René Moreno"
+    - El "video_hook" también debe usar nombres completos (es para audio)
+    - NO uses frases informales en tts_text
+    - Usa \\n para saltos de línea legibles
+    - Cada línea del texto debe tener propósito
     """,
     "whatsapp": """
     Eres un experto en comunicación directa especializado en WhatsApp para instituciones académicas.
@@ -366,30 +401,71 @@ def generar_imagen_ia_base64(prompt_imagen: str) -> str:
 
 def extraer_keywords_con_llm(texto: str) -> list:
     """
-    Extrae 3 keywords principales del texto para buscar videos
+    🆕 VERSIÓN MEJORADA: Extrae keywords ESPECÍFICAS para buscar videos relevantes
+    
+    Ahora analiza el contenido y genera keywords contextuales:
+    - Si menciona FICCT/computación → "computer science", "programming", "coding"
+    - Si menciona inscripciones → "registration desk", "students enrollment"
+    - Si menciona exámenes → "students studying", "exam preparation"
+    - Si menciona graduación → "graduation ceremony", "university caps"
+    
+    Genera 3-5 keywords en INGLÉS, específicas y visuales
     """
     prompt_keywords = f"""
-    Del siguiente texto académico, extrae EXACTAMENTE 3 palabras clave en INGLÉS 
-    para buscar videos de stock que representen visualmente el contenido.
+    Eres un experto en selección de contenido visual para videos de TikTok académicos.
     
-    Las keywords deben ser:
-    - Simples (1-2 palabras)
-    - Generales (que existan videos en Pexels)
-    - Relacionadas con educación universitaria
+    Tu tarea es analizar el siguiente texto sobre la UAGRM (Universidad) y extraer 
+    3-5 keywords en INGLÉS para buscar videos de stock que representen VISUALMENTE 
+    y ESPECÍFICAMENTE el contenido.
     
-    Texto: "{texto}"
+    REGLAS CRÍTICAS:
+    ✅ Las keywords deben ser ESPECÍFICAS al tema, no genéricas
+    ✅ Piensa en qué se vería en el video, no solo el concepto
+    ✅ Usa términos visuales y descriptivos
+    ✅ SIEMPRE en INGLÉS (para Pexels API)
+    ✅ Máximo 2-3 palabras por keyword
+    ✅ Prioriza keywords que tengan alta probabilidad de tener videos
+    
+    CONTEXTO ACADÉMICO:
+    - FICCT = Facultad de Ciencias de la Computación (computer science, IT, programming)
+    - UAGRM = Universidad en Bolivia (university campus, college students)
+    - Temas comunes: inscripciones, retiros, exámenes, clases, eventos
+    
+    EJEMPLOS DE KEYWORDS BUENAS vs MALAS:
+    
+    ❌ GENÉRICAS (EVITAR):
+    - "students", "university", "college" (muy amplias)
+    - "education", "learning" (muy abstractas)
+    
+    ✅ ESPECÍFICAS (USAR):
+    - "computer science students", "programming classroom", "coding laptop"
+    - "university registration desk", "students enrollment line"
+    - "exam preparation library", "students studying laptop"
+    - "graduation ceremony caps", "university campus entrance"
+    - "classroom technology", "students presentation"
+    
+    ANÁLISIS POR TEMA:
+    - Si habla de FICCT/computación → "computer lab", "coding students", "IT classroom"
+    - Si habla de inscripciones → "registration desk", "students enrollment", "university admission"
+    - Si habla de retiro de materias → "students consulting", "academic advising", "university office"
+    - Si habla de exámenes → "students studying", "exam preparation", "library study"
+    - Si habla de clases → "university lecture", "classroom students", "professor teaching"
+    - Si habla de eventos → "university event", "students gathering", "campus activity"
+    - Si habla de graduación → "graduation ceremony", "university caps", "diploma celebration"
+    - Si habla de tecnología/IA → "artificial intelligence", "technology students", "computer science"
+    
+    Texto a analizar: "{texto}"
     
     Responde SOLO con un JSON:
     {{
-      "keywords": ["keyword1", "keyword2", "keyword3"]
+      "keywords": ["keyword específica 1", "keyword específica 2", "keyword específica 3"],
+      "razon": "Breve explicación de por qué elegiste estas keywords"
     }}
     
-    Ejemplos válidos:
-    - ["students", "university", "studying"]
-    - ["campus", "graduation", "books"]
-    - ["classroom", "lecture", "college"]
-    
-    NO incluyas palabras muy específicas como nombres propios.
+    IMPORTANTE: 
+    - NO uses keywords genéricas como "students", "university" solas
+    - SÍ combina palabras para ser específico: "computer science students"
+    - Piensa: "¿Qué video de Pexels representaría mejor este tema?"
     """
     
     try:
@@ -398,14 +474,89 @@ def extraer_keywords_con_llm(texto: str) -> list:
         response_text = response_text.replace('```json\n', '').replace('```\n', '').replace('```', '').strip()
         
         resultado = json.loads(response_text)
-        keywords = resultado.get("keywords", ["university", "students", "education"])
+        keywords = resultado.get("keywords", ["university students", "college campus", "education"])
+        razon = resultado.get("razon", "")
         
         print(f"🔍 Keywords extraídas: {keywords}")
-        return keywords[:3]
+        print(f"💡 Razón: {razon}")
+        
+        # Validar que no sean muy genéricas
+        keywords_validadas = []
+        for kw in keywords[:5]:  # Máximo 5
+            # Si la keyword es muy corta (1 palabra), agregar contexto
+            if len(kw.split()) == 1 and kw.lower() in ['students', 'university', 'college', 'education']:
+                print(f"⚠️ Keyword muy genérica detectada: '{kw}', agregando contexto...")
+                kw = f"{kw} campus"
+            keywords_validadas.append(kw)
+        
+        return keywords_validadas[:5]
         
     except Exception as e:
         print(f"⚠️ Error al extraer keywords: {e}")
-        return ["university", "students", "education"]
+        # Fallback mejorado: keywords más específicas por defecto
+        return ["university campus students", "college classroom technology", "academic study library"]
+
+def buscar_video_pexels_inteligente(keywords: list, orientation: str = "portrait") -> list:
+    """
+    🆕 Busca videos en Pexels con estrategia de fallback
+    
+    1. Intenta buscar con keywords específicas
+    2. Si no encuentra, usa versiones simplificadas
+    3. Si aún no encuentra, usa keywords genéricas de respaldo
+    
+    Args:
+        keywords: Lista de keywords específicas
+        orientation: "portrait" para TikTok
+    
+    Returns:
+        Lista de URLs de videos encontrados
+    """
+    video_urls = []
+    
+    for keyword in keywords:
+        # Intento 1: Keyword completa
+        url = buscar_video_pexels(keyword, orientation)
+        if url:
+            video_urls.append(url)
+            print(f"✅ Video encontrado con: '{keyword}'")
+            continue
+        
+        # Intento 2: Si tiene más de 2 palabras, probar con las primeras 2
+        palabras = keyword.split()
+        if len(palabras) > 2:
+            keyword_simplificada = " ".join(palabras[:2])
+            print(f"🔄 Intentando versión simplificada: '{keyword_simplificada}'")
+            url = buscar_video_pexels(keyword_simplificada, orientation)
+            if url:
+                video_urls.append(url)
+                print(f"✅ Video encontrado con versión simplificada")
+                continue
+        
+        # Intento 3: Usar solo la primera palabra si es descriptiva
+        if len(palabras) > 0 and palabras[0].lower() not in ['the', 'a', 'an']:
+            primera_palabra = palabras[0]
+            print(f"🔄 Intentando primera palabra: '{primera_palabra}'")
+            url = buscar_video_pexels(primera_palabra, orientation)
+            if url:
+                video_urls.append(url)
+                print(f"✅ Video encontrado con primera palabra")
+                continue
+        
+        print(f"⚠️ No se encontró video para: '{keyword}'")
+    
+    # Fallback final: Si no encontró suficientes videos
+    if len(video_urls) < 2:
+        print("🔄 Aplicando fallback genérico...")
+        fallback_keywords = ["university campus", "students classroom", "college education"]
+        for fb_keyword in fallback_keywords:
+            if len(video_urls) >= 3:
+                break
+            url = buscar_video_pexels(fb_keyword, orientation)
+            if url and url not in video_urls:
+                video_urls.append(url)
+                print(f"✅ Video fallback agregado: '{fb_keyword}'")
+    
+    return video_urls        
 
 
 def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
@@ -460,30 +611,193 @@ def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
         print(f"❌ Error buscando video en Pexels: {e}")
         return None
 
-
-def generar_audio_elevenlabs(texto: str) -> str:
+def limpiar_texto_para_tts(texto: str) -> str:
     """
-    Genera audio con Google TTS (gTTS) - VERSIÓN GRATUITA
-    Reemplaza ElevenLabs para evitar costos
+    Limpia el texto para que gTTS lo lea naturalmente.
+    - Elimina emojis
+    - Elimina hashtags
+    - Elimina caracteres especiales
+    - Reemplaza siglas por nombres completos (FICCT, UAGRM, etc.)
+    - Mantiene solo el contenido hablable
+    """
+    import re
+    
+    # 1. Eliminar hashtags (#UAGRM, #FICCT, etc.)
+    texto_limpio = re.sub(r'#\w+', '', texto)
+    
+    # 2. Eliminar emojis (todos los caracteres Unicode de emojis)
+    emoji_pattern = re.compile(
+        "["
+        u"\U0001F600-\U0001F64F"  # emoticons
+        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+        u"\U0001F680-\U0001F6FF"  # transport & map symbols
+        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+        u"\U00002500-\U00002BEF"  # chinese char
+        u"\U00002702-\U000027B0"
+        u"\U000024C2-\U0001F251"
+        u"\U0001f926-\U0001f937"
+        u"\U00010000-\U0010ffff"
+        u"\u2640-\u2642" 
+        u"\u2600-\u2B55"
+        u"\u200d"
+        u"\u23cf"
+        u"\u23e9"
+        u"\u231a"
+        u"\ufe0f"  # dingbats
+        u"\u3030"
+        "]+", 
+        flags=re.UNICODE
+    )
+    texto_limpio = emoji_pattern.sub('', texto_limpio)
+    
+    # 3. 🆕 Reemplazar siglas comunes por nombres completos
+    reemplazos_siglas = {
+        r'\bFICCT\b': 'Facultad de Ingeniería de Ciencias de la Computación',
+        r'\bUAGRM\b': 'Universidad Autónoma Gabriel René Moreno',
+        r'\bFIA\b': 'Facultad de Ingeniería Agrícola',
+        r'\bFCS\b': 'Facultad de Ciencias de la Salud',
+        r'\bFACICO\b': 'Facultad de Ciencias Económicas',
+    }
+    
+    for sigla, nombre_completo in reemplazos_siglas.items():
+        texto_limpio = re.sub(sigla, nombre_completo, texto_limpio, flags=re.IGNORECASE)
+    
+    # 4. Eliminar múltiples espacios y saltos de línea
+    texto_limpio = re.sub(r'\s+', ' ', texto_limpio)
+    
+    # 5. Eliminar símbolos repetidos (!!!, ???, etc.)
+    texto_limpio = re.sub(r'([!?.])\1+', r'\1', texto_limpio)
+    
+    # 6. Limpiar espacios al inicio y final
+    texto_limpio = texto_limpio.strip()
+    
+    print(f"📝 Texto original: {texto[:100]}...")
+    print(f"🧹 Texto limpio: {texto_limpio[:100]}...")
+    
+    return texto_limpio
+
+def generar_guion_narracion(texto_original: str) -> str:
+    """
+    Usa IA para generar un guión de narración natural y expresivo.
+    
+    El LLM convierte el texto en un guión que suena como si una persona
+    real estuviera hablando, con pausas naturales, énfasis y fluidez.
+    """
+    
+    prompt_narracion = f"""
+    Eres un experto en locución y narración para videos de TikTok académicos.
+    
+    Tu tarea es convertir el siguiente texto académico en un GUIÓN DE NARRACIÓN
+    natural, expresivo y conversacional para ser leído en voz alta.
+    
+    REGLAS PARA EL GUIÓN:
+    ✅ Habla en segunda persona (tú) o primera persona del plural (nosotros)
+    ✅ Usa un tono cercano, juvenil pero profesional
+    ✅ Incluye pausas naturales usando comas (,) y puntos (.)
+    ✅ Divide en frases cortas y fáciles de entender
+    ✅ Agrega palabras de transición: "así que", "por eso", "recuerda que"
+    ✅ Haz énfasis en lo importante usando mayúsculas ocasionales
+    ✅ Termina con una pregunta o llamado a la acción
+    ✅ Reemplaza "FICCT" con "Facultad de Ingeniería en Ciencias de la Computación"
+    ✅ Reemplaza otras siglas por sus nombres completos cuando sea necesario
+    ❌ NO uses palabras como "Oye", "Hey", "Hola" al inicio
+    ❌ NO uses emojis, hashtags ni símbolos especiales
+    ❌ NO leas literalmente el texto, REESCRÍBELO de forma conversacional
+    ❌ NO menciones la sigla "FICCT" tal cual (di "la facultad" o su nombre completo)
+    ❌ NO excedas 150 palabras (duración ideal: 10-15 segundos)
+    
+    Texto original: "{texto_original}"
+    
+    EJEMPLO DE BUENA NARRACIÓN:
+    Input: "La UAGRM facultad FICCT habilitará retiro la próxima semana"
+    Output: "Atención estudiantes de la Facultad de Ingeniería en Ciencias de la Computación. Tenemos 
+    una noticia importante. La próxima semana ya puedes hacer el retiro de materias. 
+    Así que, si estás pensando en retirarte de alguna materia, este es el momento. 
+    No pierdas la oportunidad. Tienes toda la próxima semana para hacerlo. Comparte 
+    esto con tus compañeros para que todos estén enterados."
+    
+    IMPORTANTE: Sé directo, ve al grano, sin saludos innecesarios.
+    Responde SOLO con el guión de narración, sin explicaciones adicionales.
+    El texto debe ser directo, natural y fácil de leer en voz alta.
+    """
+    
+    try:
+        print("🎬 Generando guión de narración con IA...")
+        response = model.generate_content(prompt_narracion)
+        guion = response.text.strip()
+        
+        # Limpiar markdown si existe
+        guion = guion.replace('```', '').strip()
+        
+        print(f"✅ Guión generado: {guion[:100]}...")
+        return guion
+        
+    except Exception as e:
+        print(f"❌ Error generando guión: {e}")
+        # Fallback: usar el texto original limpio
+        return limpiar_texto_para_tts(texto_original)
+
+def generar_audio_elevenlabs(texto: str, usar_guion_ia: bool = True) -> str:
+    """
+    Genera audio con Google TTS (gTTS) - VERSIÓN MEJORADA
+    🆕 Ahora con velocidad x1.5
     """
     try:
         from gtts import gTTS
+        from pydub import AudioSegment
         
         print(f"🎤 Generando audio con Google TTS (gTTS)...")
         
+        # Generar guión inteligente con IA
+        if usar_guion_ia:
+            texto_final = generar_guion_narracion(texto)
+        else:
+            texto_final = limpiar_texto_para_tts(texto)
+        
+        if not texto_final or len(texto_final) < 10:
+            print("⚠️ Texto demasiado corto, usando texto original")
+            texto_final = texto
+        
+        print(f"📝 Texto que se leerá: {texto_final[:150]}...")
+        
         # Crear audio con gTTS
-        tts = gTTS(text=texto, lang='es', slow=False)
+        tts = gTTS(text=texto_final, lang='es', slow=False)
         
         # Guardar en archivo temporal
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as audio_file:
             tts.save(audio_file.name)
-            audio_path = audio_file.name
-            print(f"✅ Audio generado: {audio_path}")
-            return audio_path
+            temp_audio_path = audio_file.name
+        
+        # 🆕 AUMENTAR VELOCIDAD x1.5 usando FFmpeg directamente
+        print("⚡ Aumentando velocidad a x1.5 con FFmpeg...")
+        
+        # Crear ruta para audio acelerado
+        audio_rapido_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3').name
+        
+        # Usar FFmpeg para acelerar (atempo=1.5)
+        subprocess.run([
+            FFMPEG_PATH,
+            '-i', temp_audio_path,
+            '-filter:a', 'atempo=1.5',  # Acelerar 1.5x
+            '-y',
+            audio_rapido_path
+        ], check=True, capture_output=True, text=True)
+        
+        # Limpiar audio temporal original
+        os.unlink(temp_audio_path)
+        
+        print(f"✅ Audio generado con velocidad x1.5: {audio_rapido_path}")
+        return audio_rapido_path
             
-    except ImportError:
-        print("❌ gTTS no instalado. Ejecuta: pip install gtts")
+    except ImportError as e:
+        print(f"❌ Librería faltante: {e}")
+        print("💡 Instala: pip install gtts")
         return None
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error en FFmpeg al acelerar audio: {e.stderr if e.stderr else e}")
+        # Si falla, devolver audio sin acelerar
+        print("⚠️ Devolviendo audio sin acelerar")
+        return temp_audio_path if 'temp_audio_path' in locals() else None
     except Exception as e:
         print(f"❌ Error generando audio: {e}")
         return None
@@ -603,30 +917,24 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
         return None
 
 
-def generar_video_tiktok(texto_adaptado: str) -> str:
+def generar_video_tiktok(texto_adaptado: str, adaptacion: dict = None) -> str:
     """
     FUNCIÓN PRINCIPAL: Genera video completo para TikTok
     
-    1. Extrae keywords del texto
-    2. Busca videos en Pexels
-    3. Genera audio con gTTS
-    4. Combina todo con FFmpeg
-    
-    Returns: Path del video final
+    🆕 MEJORAS FASE 1:
+    - Keywords más inteligentes y específicas
+    - Sistema de fallback para garantizar videos
     """
     print("\n" + "="*60)
     print("🎬 GENERANDO VIDEO PARA TIKTOK")
     print("="*60)
     
-    # 1. Extraer keywords
+    # 1. Extraer keywords INTELIGENTES
     keywords = extraer_keywords_con_llm(texto_adaptado)
     
-    # 2. Buscar videos
-    video_urls = []
-    for keyword in keywords:
-        url = buscar_video_pexels(keyword)
-        if url:
-            video_urls.append(url)
+    # 2. Buscar videos con sistema inteligente
+    print(f"\n🔍 Buscando videos con keywords específicas...")
+    video_urls = buscar_video_pexels_inteligente(keywords)
     
     if not video_urls:
         print("❌ No se encontraron videos en Pexels")
@@ -635,7 +943,14 @@ def generar_video_tiktok(texto_adaptado: str) -> str:
     print(f"✅ Encontrados {len(video_urls)} videos")
     
     # 3. Generar audio
-    audio_path = generar_audio_elevenlabs(texto_adaptado)
+    if adaptacion and "tts_text" in adaptacion:
+        texto_para_audio = adaptacion["tts_text"]
+        print(f"✅ Usando tts_text del LLM: {texto_para_audio[:100]}...")
+        audio_path = generar_audio_elevenlabs(texto_para_audio, usar_guion_ia=False)
+    else:
+        print(f"🎬 Generando guión de narración inteligente...")
+        audio_path = generar_audio_elevenlabs(texto_adaptado, usar_guion_ia=True)
+    
     if not audio_path:
         print("❌ No se pudo generar audio")
         return None
