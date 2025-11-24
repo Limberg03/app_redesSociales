@@ -18,3 +18,25 @@ class TestPostRequest(BaseModel):
 
 class TestPostRequestLinkedIn(BaseModel):
     text: str
+
+
+class MultiNetworkPostRequest(BaseModel):
+    """
+    Request para publicar en múltiples redes sociales simultáneamente
+    
+    Ejemplo:
+    {
+        "text": "La UAGRM anuncia nuevas inscripciones",
+        "target_networks": ["facebook", "instagram", "linkedin", "tiktok"]
+    }
+    """
+    text: str
+    target_networks: List[str]    
+
+class MultiNetworkPostResponse(BaseModel):
+    """
+    Respuesta con resultados de cada red social
+    """
+    validacion: Dict[str, Any]
+    resultados: Dict[str, Dict[str, Any]]
+    resumen: Dict[str, Any]    

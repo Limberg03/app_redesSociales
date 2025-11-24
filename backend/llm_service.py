@@ -633,7 +633,7 @@ def extraer_keywords_con_llm(texto: str) -> list:
             categoria_fallback = fallbacks.get(categoria, fallbacks["campus"])
             keywords_validadas.extend(categoria_fallback[:5 - len(keywords_validadas)])
         
-        return keywords_validadas[:5]  # Retornar exactamente 5 keywords
+        return keywords_validadas[:3]  # Retornar exactamente 5 keywords
         
     except json.JSONDecodeError as e:
         print(f"⚠️ Error al parsear JSON: {e}")
@@ -890,7 +890,7 @@ def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
         "query": query,
         "per_page": 1,
         "orientation": orientation,  # portrait para TikTok
-        "size": "medium"
+        "size": "small"
     }
     
     try:
@@ -906,18 +906,22 @@ def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
         videos = data.get("videos", [])
         
         if videos:
-            # Buscar el archivo de video en resolución portrait
             video_files = videos[0].get("video_files", [])
             
-            # Priorizar resolución HD portrait
+            # ⚡ PRIORIZAR RESOLUCIONES BAJAS (SD)
             for vf in video_files:
-                if vf.get("width", 0) < vf.get("height", 0):  # Portrait
-                    print(f"✅ Video encontrado: {query}")
+                width = vf.get("width", 0)
+                height = vf.get("height", 0)
+                
+                # Buscar videos SD portrait (540p o 720p máximo)
+                if width < height and height <= 720:  # ← FILTRO OPTIMIZADO
+                    print(f"✅ Video SD encontrado: {query} ({width}x{height})")
                     return vf.get("link")
             
-            # Si no hay portrait, usar el primero
+            # Fallback: usar el más pequeño disponible
             if video_files:
-                return video_files[0].get("link")
+                smallest = min(video_files, key=lambda v: v.get("height", 9999))
+                return smallest.get("link")
         
         print(f"⚠️ No se encontraron videos para: {query}")
         return None
@@ -925,6 +929,47 @@ def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
     except Exception as e:
         print(f"❌ Error buscando video en Pexels: {e}")
         return None
+
+import asyncio
+
+async def descargar_video_async(url: str, index: int) -> tuple:
+    """
+    Descarga un video de forma asíncrona
+    """
+    try:
+        print(f"📥 Descargando video {index+1}...")
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as video_file:
+                video_file.write(response.content)
+                return (index, video_file.name)
+    except Exception as e:
+        print(f"❌ Error descargando video {index+1}: {e}")
+        return (index, None)
+
+
+async def descargar_videos_paralelo(video_urls: list) -> list:
+    """
+    Descarga múltiples videos en paralelo
+    """
+    print(f"⚡ Descargando {len(video_urls)} videos en paralelo...")
+    
+    tasks = [
+        descargar_video_async(url, i) 
+        for i, url in enumerate(video_urls) 
+        if url
+    ]
+    
+    resultados = await asyncio.gather(*tasks)
+    
+    # Ordenar por índice y filtrar None
+    video_paths = [path for _, path in sorted(resultados) if path]
+    
+    print(f"✅ {len(video_paths)} videos descargados")
+    return video_paths
+
 
 def limpiar_texto_para_tts(texto: str) -> str:
     """
@@ -1148,70 +1193,65 @@ def verificar_ffmpeg() -> bool:
 
 def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total: int = 15) -> str:
     """
-    Combina múltiples videos con audio usando FFmpeg
+    Combina múltiples videos con audio - VERSIÓN OPTIMIZADA
     """
     try:
-        # Verificar FFmpeg primero
         if not verificar_ffmpeg():
             return None
 
-        print(f"🎬 Combinando {len(video_urls)} videos con audio...")
+        print(f"🎬 Combinando {len(video_urls)} videos con audio (MODO RÁPIDO)...")
 
-        # Descargar videos
-        video_paths = []
-        for i, url in enumerate(video_urls):
-            if not url:
-                continue
-
-            print(f"📥 Descargando video {i+1}...")
-            response = httpx.get(url, timeout=30.0)
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as video_file:
-                video_file.write(response.content)
-                video_paths.append(video_file.name)
-
+        # ⚡ DESCARGAS PARALELAS
+        video_paths = asyncio.run(descargar_videos_paralelo(video_urls))
+        
         if not video_paths:
             print("❌ No se descargaron videos")
             return None
 
-        # Crear archivo temporal para el video final
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-
-        # Crear lista de archivos para FFmpeg
         concat_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
+        
         for path in video_paths:
-            # Normalizar rutas para FFmpeg
             path_normalized = path.replace('\\', '/')
             concat_file.write(f"file '{path_normalized}'\n")
         concat_file.close()
 
-        # Combinar videos
         temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
 
-        print("🔄 Paso 1: Concatenando videos...")
+        print("🔄 Paso 1: Concatenando videos (RÁPIDO)...")
         subprocess.run([
-            FFMPEG_PATH, '-f', 'concat', '-safe', '0',
+            FFMPEG_PATH, 
+            '-f', 'concat', 
+            '-safe', '0',
             '-i', concat_file.name,
-             # 🔥 CAMBIO: De 1080x1920 a 720x1280
-             '-vf', f'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280',
-              '-t', str(duracion_total),
-              '-c:v', 'libx264', '-preset', 'ultrafast',  # <- También cambiar 'fast' a 'ultrafast'
-              '-y', temp_video
-            ], check=True, capture_output=True, text=True)
+            # ⚡ OPTIMIZACIONES CRÍTICAS:
+            '-vf', f'scale=540:960:force_original_aspect_ratio=increase,crop=540:960',  # SD
+            '-t', str(duracion_total),
+            '-c:v', 'libx264', 
+            '-preset', 'veryfast',  # ← CAMBIO: ultrafast → veryfast (mejor balance)
+            '-crf', '28',  # ← NUEVO: Compresión más agresiva (23 default, 28 = menor calidad)
+            '-movflags', '+faststart',  # ← NUEVO: Optimizar para streaming
+            '-y', temp_video
+        ], check=True, capture_output=True, text=True)
 
-        # Agregar audio
-        print("🔄 Paso 2: Agregando audio...")
+        print("🔄 Paso 2: Agregando audio (RÁPIDO)...")
         subprocess.run([
-            FFMPEG_PATH, '-i', temp_video, '-i', audio_path,
-            '-c:v', 'copy', '-c:a', 'aac',
-            '-map', '0:v:0', '-map', '1:a:0',
+            FFMPEG_PATH, 
+            '-i', temp_video, 
+            '-i', audio_path,
+            '-c:v', 'copy',  # No recodificar video
+            '-c:a', 'aac',
+            '-b:a', '96k',  # ← NUEVO: Bitrate de audio más bajo (128k default)
+            '-map', '0:v:0', 
+            '-map', '1:a:0',
             '-shortest',
+            '-movflags', '+faststart',  # ← NUEVO: Optimizar
             '-y', output_path
-          ], check=True, capture_output=True, text=True)
+        ], check=True, capture_output=True, text=True)
 
         print(f"✅ Video final creado: {output_path}")
 
-        # Limpiar archivos temporales
+        # Limpiar
         os.unlink(concat_file.name)
         os.unlink(temp_video)
         for path in video_paths:
@@ -1219,15 +1259,6 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
 
         return output_path
 
-    except FileNotFoundError:
-        print(f"❌ FFmpeg no encontrado en: {FFMPEG_PATH}")
-        print("💡 Asegúrate de que FFmpeg esté instalado correctamente")
-        print(f"   Ruta configurada: {FFMPEG_PATH}")
-        return None
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Error en FFmpeg: {e.stderr if e.stderr else e}")
-        print(f"   Comando: {' '.join(e.cmd)}")
-        return None
     except Exception as e:
         print(f"❌ Error combinando videos: {type(e).__name__}: {e}")
         return None
