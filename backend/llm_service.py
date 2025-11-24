@@ -513,7 +513,8 @@ def buscar_video_pexels_inteligente(keywords: list, orientation: str = "portrait
     """
     video_urls = []
     
-    for keyword in keywords:
+    
+    for keyword in keywords[:2]:
         # Intento 1: Keyword completa
         url = buscar_video_pexels(keyword, orientation)
         if url:
@@ -877,11 +878,12 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
         subprocess.run([
             FFMPEG_PATH, '-f', 'concat', '-safe', '0',
             '-i', concat_file.name,
-            '-vf', f'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
-            '-t', str(duracion_total),
-            '-c:v', 'libx264', '-preset', 'fast',
-            '-y', temp_video
-        ], check=True, capture_output=True, text=True)
+             # 🔥 CAMBIO: De 1080x1920 a 720x1280
+             '-vf', f'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280',
+              '-t', str(duracion_total),
+              '-c:v', 'libx264', '-preset', 'ultrafast',  # <- También cambiar 'fast' a 'ultrafast'
+              '-y', temp_video
+            ], check=True, capture_output=True, text=True)
 
         # Agregar audio
         print("🔄 Paso 2: Agregando audio...")
@@ -891,7 +893,7 @@ def combinar_videos_con_audio(video_urls: list, audio_path: str, duracion_total:
             '-map', '0:v:0', '-map', '1:a:0',
             '-shortest',
             '-y', output_path
-        ], check=True, capture_output=True, text=True)
+          ], check=True, capture_output=True, text=True)
 
         print(f"✅ Video final creado: {output_path}")
 
