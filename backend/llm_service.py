@@ -612,6 +612,10 @@ def buscar_video_pexels(query: str, orientation: str = "portrait") -> str:
         print(f"❌ Error buscando video en Pexels: {e}")
         return None
 
+
+
+
+
 def limpiar_texto_para_tts(texto: str) -> str:
     """
     Limpia el texto para que gTTS lo lea naturalmente.

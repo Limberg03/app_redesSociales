@@ -744,20 +744,36 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest):
                     resultados["tiktok"] = {
                         "estado": "error",
                         "error": result["error"],
+                        "mensaje": result.get("mensaje", "Error al publicar en TikTok"),
                         "adaptacion": adaptacion
                     }
                     fallidos += 1
                     print(f"   ❌ TikTok falló: {result['error']}")
                 else:
+                    # 🔗 RETORNAR TODA LA INFO INCLUYENDO share_url
                     resultados["tiktok"] = {
                         "estado": "exitoso",
                         "publish_id": result.get("publish_id"),
+                        "video_id": result.get("video_id"),
+                        "share_url": result.get("share_url"),  # 🔗 ENLACE DEL VIDEO
+                        "privacy": result.get("privacy"),
                         "mode": result.get("mode"),
-                        "instrucciones": result.get("instrucciones"),
+                        "size_mb": result.get("size_mb"),
+                        "mensaje": result.get("mensaje"),
+                        "como_ver": result.get("como_ver"),  # 📱 INSTRUCCIONES
+                        "cuenta": result.get("cuenta", "@limberg818"),
+                        "visibilidad": result.get("visibilidad"),
+                        "nota": result.get("nota"),
                         "adaptacion": adaptacion
                     }
                     exitosos += 1
-                    print(f"   ✅ TikTok publicado como borrador")
+                    
+                    # Log del share_url
+                    share_url = result.get("share_url")
+                    if share_url:
+                        print(f"   ✅ TikTok publicado: {share_url}")
+                    else:
+                        print(f"   ✅ TikTok publicado (sin share_url público)")
         
         except Exception as e:
             resultados[red] = {
@@ -794,4 +810,4 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest):
         "validacion": validacion,
         "resultados": resultados,
         "resumen": resumen
-    }    
+    }

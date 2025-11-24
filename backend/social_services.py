@@ -332,7 +332,7 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
     """
     🆕 Sube video a TikTok con Direct Post (video.publish)
     
-    Publicación PRIVADA (SELF_ONLY) sin necesidad de aprobación
+    🔗 AHORA RETORNA EL SHARE_URL para ver el video
     """
     TIKTOK_TOKEN = os.getenv("TIKTOK_ACCESS_TOKEN")
     
@@ -355,7 +355,7 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
         video_size = len(video_bytes)
         logging.info(f"✅ Tamaño del video: {video_size} bytes ({video_size / (1024*1024):.2f} MB)")
         
-        # PASO 1: Inicializar subida con Direct Post (video.publish)
+        # PASO 1: Inicializar subida
         logging.info("TikTok - Paso 1: Inicializando Direct Post...")
         
         upload_init_url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
@@ -365,11 +365,10 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
             "Content-Type": "application/json; charset=UTF-8"
         }
         
-        # 🔥 PAYLOAD CON post_info (Direct Post)
         payload = {
             "post_info": {
-                "title": text[:500],  # TikTok permite máximo 150 caracteres
-                "privacy_level": "SELF_ONLY",  # SELF_ONLY = Solo yo (privado)
+                "title": text[:500], 
+                "privacy_level": privacy,
                 "disable_duet": False,
                 "disable_comment": False,
                 "disable_stitch": False,
@@ -434,7 +433,10 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
         import time
         time.sleep(5)
         
-        # PASO 4: Verificar estado de publicación
+        # 🆕 PASO 4: OBTENER SHARE_URL (IMPORTANTE)
+        share_url = None
+        video_id = None
+        
         try:
             status_url = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
             
@@ -452,19 +454,39 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
             if response_status.status_code == 200:
                 status_data = response_status.json()
                 upload_status = status_data.get("data", {}).get("status", "unknown")
+                
+                # 🔗 OBTENER SHARE_URL Y VIDEO_ID
+                publicacion_info = status_data.get("data", {})
+                share_url = publicacion_info.get("publicaly_available_post_id_list", [None])[0]
+                
+                # Si no está en publicaly_available_post_id_list, buscar en uploaded_videos
+                if not share_url:
+                    uploaded_videos = publicacion_info.get("uploaded_videos", [])
+                    if uploaded_videos:
+                        video_id = uploaded_videos[0].get("video_id")
+                        share_url = f"https://www.tiktok.com/@limberg818/video/{video_id}"
+                
                 logging.info(f"📊 Estado del video: {upload_status}")
                 
-                # Obtener info adicional
-                publicacion_info = status_data.get("data", {})
+                if share_url:
+                    logging.info(f"🔗 Share URL: {share_url}")
+                else:
+                    logging.warning("⚠️ No se pudo obtener share_url (video privado)")
+                    # Para videos privados, construir URL estimada
+                    share_url = f"https://www.tiktok.com/@limberg818/video/{publish_id.split('~')[-1]}"
                 
         except Exception as e:
             logging.warning(f"⚠️ No se pudo verificar estado: {e}")
             publicacion_info = {}
+            # URL de respaldo para ver en la app
+            share_url = f"tiktok://app/post/{publish_id}"
         
         logging.info(f"✅ Video publicado PRIVADO en TikTok (@limberg818)")
         
         return {
             "publish_id": publish_id,
+            "video_id": video_id,
+            "share_url": share_url,  # 🔗 ENLACE DEL VIDEO
             "status": "published_private",
             "privacy": privacy,
             "mode": "Direct Post (video.publish)",
@@ -473,7 +495,13 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
             "descripcion": text,
             "cuenta": "@limberg818",
             "visibilidad": "PRIVADO (Solo yo)",
-            "nota": "El video está publicado pero SOLO TÚ puedes verlo. Nadie más puede acceder a él.",
+            "nota": "El video está publicado pero SOLO TÚ puedes verlo.",
+            "como_ver": [
+                "1. Abre la app de TikTok en tu teléfono",
+                "2. Ve a tu perfil (@limberg818)",
+                "3. El video aparecerá en 'Privados'",
+                f"4. O usa este enlace: {share_url}"
+            ],
             "detalles": publicacion_info
         }
         
@@ -482,7 +510,6 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
             error_data = e.response.json()
             logging.error(f"❌ Error TikTok API [{e.response.status_code}]: {error_data}")
             
-            # Manejo de errores específicos
             error_code = error_data.get("error", {}).get("code", "")
             
             if error_code == "unaudited_client_can_only_post_to_private_accounts":
