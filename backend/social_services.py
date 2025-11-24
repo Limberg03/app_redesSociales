@@ -330,51 +330,45 @@ def post_whatsapp_status(text: str, image_url: str = None):
     
 def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
     """
-    🆕 Sube video a TikTok con Direct Post (video.publish)
-    
-    Publicación PRIVADA (SELF_ONLY) sin necesidad de aprobación
+    🆕 Sube video a TikTok con Creator Upload (video.upload)
+
+    Sube el video como BORRADOR PRIVADO a tu inbox de TikTok.
+    Funciona con apps en Sandbox que NO están aprobadas.
     """
     TIKTOK_TOKEN = os.getenv("TIKTOK_ACCESS_TOKEN")
-    
+
     if not TIKTOK_TOKEN:
         logging.error("❌ TIKTOK_ACCESS_TOKEN no configurado")
         return {"error": "TikTok no configurado"}
-    
+
     if not os.path.exists(video_path):
         logging.error(f"❌ Video no encontrado: {video_path}")
         return {"error": "Video no encontrado"}
-    
-    logging.info(f"📤 Subiendo video a TikTok (PRIVADO): {text[:30]}...")
-    
+
+    logging.info(f"📤 Subiendo video a TikTok (BORRADOR PRIVADO): {text[:30]}...")
+
     try:
         # Leer el archivo de video
         logging.info("📊 Leyendo archivo de video...")
         with open(video_path, 'rb') as video_file:
             video_bytes = video_file.read()
-        
+
         video_size = len(video_bytes)
         logging.info(f"✅ Tamaño del video: {video_size} bytes ({video_size / (1024*1024):.2f} MB)")
-        
-        # PASO 1: Inicializar subida con Direct Post (video.publish)
-        logging.info("TikTok - Paso 1: Inicializando Direct Post...")
-        
-        upload_init_url = "https://open.tiktokapis.com/v2/post/publish/video/init/"
-        
+
+        # PASO 1: Inicializar subida con Creator Upload (video.upload)
+        logging.info("TikTok - Paso 1: Inicializando Creator Upload (Inbox)...")
+
+        upload_init_url = "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/"
+
         headers = {
             "Authorization": f"Bearer {TIKTOK_TOKEN}",
             "Content-Type": "application/json; charset=UTF-8"
         }
-        
-        # 🔥 PAYLOAD CON post_info (Direct Post)
+
+        # 🔥 PAYLOAD SIN post_info (Creator Upload - Inbox)
+        # El video se sube como borrador y el usuario lo edita/publica manualmente en TikTok
         payload = {
-            "post_info": {
-                "title": text[:150],  # TikTok permite máximo 150 caracteres
-                "privacy_level": "SELF_ONLY",  # SELF_ONLY = Solo yo (privado)
-                "disable_duet": False,
-                "disable_comment": False,
-                "disable_stitch": False,
-                "video_cover_timestamp_ms": 1000
-            },
             "source_info": {
                 "source": "FILE_UPLOAD",
                 "video_size": video_size,
@@ -461,19 +455,20 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
             logging.warning(f"⚠️ No se pudo verificar estado: {e}")
             publicacion_info = {}
         
-        logging.info(f"✅ Video publicado PRIVADO en TikTok (@limberg818)")
-        
+        logging.info(f"✅ Video subido a TikTok Inbox (@limberg818)")
+
         return {
             "publish_id": publish_id,
-            "status": "published_private",
-            "privacy": privacy,
-            "mode": "Direct Post (video.publish)",
+            "status": "uploaded_to_inbox",
+            "privacy": "PRIVATE_DRAFT",
+            "mode": "Creator Upload (video.upload)",
             "size_mb": round(video_size / (1024*1024), 2),
-            "mensaje": "✅ Video publicado PRIVADO en TikTok (Solo tú puedes verlo)",
+            "mensaje": "✅ Video subido como BORRADOR PRIVADO en tu TikTok Inbox",
             "descripcion": text,
             "cuenta": "@limberg818",
-            "visibilidad": "PRIVADO (Solo yo)",
-            "nota": "El video está publicado pero SOLO TÚ puedes verlo. Nadie más puede acceder a él.",
+            "visibilidad": "BORRADOR PRIVADO (Inbox)",
+            "nota": "El video está en tu Inbox de TikTok. Ábrelo en la app para editarlo y publicarlo cuando quieras.",
+            "instrucciones": "1. Abre TikTok en tu teléfono\n2. Ve a tu perfil\n3. Busca el video en 'Borradores' o 'Inbox'\n4. Edítalo y publícalo como desees",
             "detalles": publicacion_info
         }
         
@@ -488,8 +483,8 @@ def post_to_tiktok(text: str, video_path: str, privacy: str = "SELF_ONLY"):
             if error_code == "unaudited_client_can_only_post_to_private_accounts":
                 return {
                     "error": "app_not_approved",
-                    "mensaje": "⚠️ Tu app no está aprobada por TikTok. Solo puedes publicar en cuentas privadas.",
-                    "solucion": "Usa SELF_ONLY para publicar videos privados (Solo tú)",
+                    "mensaje": "⚠️ Tu app no está aprobada por TikTok.",
+                    "solucion": "Ya estás usando Creator Upload (video.upload) que sube como borrador privado. Verifica que el scope 'video.upload' esté habilitado en TikTok Developer Portal.",
                     "detalles": error_data
                 }
             

@@ -392,11 +392,11 @@ def test_post_tiktok(request: schemas.TestPostRequest):
     
     print(f"✅ Video generado: {video_path}")
     
-    # 5. PUBLICAR EN TIKTOK (PRIVADO)
+    # 5. SUBIR A TIKTOK (BORRADOR PRIVADO)
     result = social_services.post_to_tiktok(
         text=texto_adaptado,
         video_path=video_path,
-        privacy="SELF_ONLY"  # PRIVADO
+        privacy="SELF_ONLY"  # Parámetro legacy, ahora usa Creator Upload (Inbox)
     )
     
     # 6. Limpiar video temporal
@@ -416,5 +416,5 @@ def test_post_tiktok(request: schemas.TestPostRequest):
             "audio_usado": "tts_text limpio (sin emojis)" if "tts_text" in adaptacion else "texto limpiado automáticamente"
         },
         "publicacion": result,
-        "mensaje": "✅ Video generado y publicado en TikTok (privado)"
+        "mensaje": "✅ Video generado y subido a TikTok Inbox (borrador privado)"
     }
