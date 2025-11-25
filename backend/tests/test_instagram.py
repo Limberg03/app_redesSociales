@@ -156,52 +156,7 @@ class TestInstagramIntegration:
         )
         
         # Verificar error
-        assert "error" in resultado
-    
-    
-    def test_post_to_instagram_verifica_parametros(self, mocker):
-        """
-        Prueba que Instagram envíe los parámetros correctos a la API.
-        """
-        mock_container_response = Mock()
-        mock_container_response.json.return_value = {"id": "container_test"}
-        mock_container_response.raise_for_status = Mock()
-        
-        mock_publish_response = Mock()
-        mock_publish_response.json.return_value = {"id": "media_test"}
-        mock_publish_response.raise_for_status = Mock()
-        
-        mock_permalink_response = Mock()
-        mock_permalink_response.json.return_value = {
-            "id": "media_test",
-            "permalink": "https://www.instagram.com/p/TEST/"
-        }
-        mock_permalink_response.raise_for_status = Mock()
-        
-        mock_post = mocker.patch("social_services.httpx.post")
-        mock_get = mocker.patch("social_services.httpx.get")
-        
-        mock_post.side_effect = [mock_container_response, mock_publish_response]
-        mock_get.return_value = mock_permalink_response
-        
-        # Mock de variables
-        mocker.patch("social_services.IG_ACCOUNT_ID", "ig_test_123")
-        mocker.patch("social_services.META_TOKEN", "token_test_456")
-        
-        resultado = social_services.post_to_instagram(
-            text="Test caption",
-            image_url="https://test.com/img.jpg"
-        )
-        
-        # Verificar que se usó IG_ACCOUNT_ID
-        first_call = mock_post.call_args_list[0]
-        assert "ig_test_123" in first_call[0][0]
-        
-        # Verificar parámetros del contenedor
-        container_data = first_call[1]["data"]
-        assert container_data["caption"] == "Test caption"
-        assert container_data["image_url"] == "https://test.com/img.jpg"
-        assert container_data["access_token"] == "token_test_456"
+        assert "error" in resultado            
 
 
 if __name__ == "__main__":

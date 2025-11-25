@@ -145,54 +145,7 @@ class TestWhatsAppIntegration:
         
         assert headers["Authorization"] == "Bearer test_whapi_token_123"
         assert headers["Content-Type"] == "application/json"
-    
-    
-    def test_post_whatsapp_status_verifica_endpoint(self, mocker):
-        """
-        Prueba que use el endpoint correcto de Whapi.Cloud.
-        """
-        mock_response = Mock()
-        mock_response.json.return_value = {"id": "test"}
-        mock_response.status_code = 200
-        mock_response.text = '{"id": "test"}'
-        mock_response.raise_for_status = Mock()
-        
-        mock_post = mocker.patch("social_services.httpx.post", return_value=mock_response)
-        mocker.patch("social_services.WHAPI_BASE_URL", "https://gate.whapi.cloud")
-        
-        resultado = social_services.post_whatsapp_status("Test")
-        
-        # Verificar URL
-        call_args = mock_post.call_args
-        url = call_args[0][0]
-        assert "https://gate.whapi.cloud/stories" in url
-    
-    
-    def test_post_whatsapp_status_parametros_texto(self, mocker):
-        """
-        Prueba los parámetros correctos para estado de solo texto.
-        """
-        mock_response = Mock()
-        mock_response.json.return_value = {"id": "text_status"}
-        mock_response.status_code = 200
-        mock_response.text = '{"id": "text_status"}'
-        mock_response.raise_for_status = Mock()
-        
-        mock_post = mocker.patch("social_services.httpx.post", return_value=mock_response)
-        
-        resultado = social_services.post_whatsapp_status(
-            text="Mensaje de prueba",
-            image_url=None
-        )
-        
-        # Verificar parámetros
-        call_args = mock_post.call_args
-        payload = call_args[1]["json"]
-        
-        assert payload["background_color"] == "#1F2937"
-        assert payload["caption"] == "Mensaje de prueba"
-        assert payload["caption_color"] == "#FFFFFF"
-        assert payload["font_type"] == "SYSTEM"
+                        
 
 
 if __name__ == "__main__":

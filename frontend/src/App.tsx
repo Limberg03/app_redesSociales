@@ -528,40 +528,7 @@ function App() {
                     <div className="result-header">
                       <h3>{mensaje.texto}</h3>
                     </div>
-
-                    {/* Resumen General */}
-                    <div className="result-section resumen-section">
-                      <h4>📊 Resumen General</h4>
-                      <div className="resumen-grid">
-                        <div className="resumen-item">
-                          <span className="resumen-label">✅ Exitosos:</span>
-                          <span className="resumen-value success">{mensaje.resultadoMultiRed.resumen.exitosos}</span>
-                        </div>
-                        <div className="resumen-item">
-                          <span className="resumen-label">❌ Fallidos:</span>
-                          <span className="resumen-value error">{mensaje.resultadoMultiRed.resumen.fallidos}</span>
-                        </div>
-                        <div className="resumen-item">
-                          <span className="resumen-label">📈 Tasa de éxito:</span>
-                          <span className="resumen-value">{mensaje.resultadoMultiRed.resumen.tasa_exito}</span>
-                        </div>
-                        <div className="resumen-item">
-                          <span className="resumen-label">⏱️ Tiempo:</span>
-                          <span className="resumen-value">{mensaje.resultadoMultiRed.resumen.tiempo_segundos}s</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Validación */}
-                    {mensaje.resultadoMultiRed.validacion && (
-                      <div className="result-section">
-                        <h4>📋 Validación</h4>
-                        <div className="validation-badge">
-                          {mensaje.resultadoMultiRed.validacion.es_academico ? '✅ Contenido Académico' : '❌ No Académico'}
-                        </div>
-                        <p className="validation-reason">{mensaje.resultadoMultiRed.validacion.razon}</p>
-                      </div>
-                    )}
+                  
 
                     {/* Resultados por Red Social */}
                     <div className="result-section">
@@ -759,11 +726,11 @@ function App() {
         {/* Input Area */}
         <div className="chat-input-area">
           {/* 🆕 Indicador de modo multi-red */}
-          {modoMultiRed && (
+          {/* {modoMultiRed && (
             <div className="multi-red-indicator">
               🌐 Modo Multi-Red Activo ({redesSeleccionadas.size} redes seleccionadas)
             </div>
-          )}
+          )} */}
 
           {/* Selector de red social con selección múltiple */}
           <div className="social-selector">
