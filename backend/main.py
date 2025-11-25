@@ -1,11 +1,22 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 import social_services
 import schemas
 import llm_service
 import os
 
+from auth import auth_schemas, auth_service
+from auth.database import get_db, init_db
+from auth.models import User
+from typing import Optional
+
 app = FastAPI()
+
+@app.on_event("startup")
+def startup_event():
+    init_db()
+    print("🚀 Servidor iniciado con autenticación")
 
 app.add_middleware(
     CORSMiddleware,
@@ -15,13 +26,129 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def get_current_user(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Verifica que el usuario esté autenticado mediante el token
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    
+    # Extraer token del header "Bearer TOKEN"
+    try:
+        token = authorization.replace("Bearer ", "")
+    except:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    
+    user = auth_service.verify_token(token, db)
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    
+    return user
+
+
+# ============================================================================
+# 🆕 ENDPOINTS DE AUTENTICACIÓN
+# ============================================================================
+
 @app.get("/")
 def read_root():
     return {"message": "API del Sistema Multi-Red Social funcionando"}
 
 
+@app.post("/api/auth/register", response_model=auth_schemas.LoginResponse)
+def register(user_data: auth_schemas.UserCreate, db: Session = Depends(get_db)):
+    """
+    Registra un nuevo usuario
+    """
+    try:
+        # Crear usuario
+        new_user = auth_service.create_user(
+            db=db,
+            username=user_data.username,
+            email=user_data.email,
+            password=user_data.password
+        )
+        
+        # Crear token
+        token = auth_service.create_access_token(new_user)
+        
+        # Respuesta
+        return auth_schemas.LoginResponse(
+            success=True,
+            message="Usuario registrado exitosamente",
+            token=auth_schemas.Token(
+                access_token=token,
+                token_type="bearer",
+                user=auth_schemas.UserResponse.from_orm(new_user)
+            )
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al registrar: {str(e)}")
+
+
+@app.post("/api/auth/login", response_model=auth_schemas.LoginResponse)
+def login(credentials: auth_schemas.UserLogin, db: Session = Depends(get_db)):
+    """
+    Inicia sesión y retorna un token
+    """
+    # Autenticar usuario
+    user = auth_service.authenticate_user(
+        db=db,
+        username=credentials.username,
+        password=credentials.password
+    )
+    
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Usuario o contraseña incorrectos"
+        )
+    
+    # Crear token
+    token = auth_service.create_access_token(user)
+    
+    return auth_schemas.LoginResponse(
+        success=True,
+        message="Login exitoso",
+        token=auth_schemas.Token(
+            access_token=token,
+            token_type="bearer",
+            user=auth_schemas.UserResponse.from_orm(user)
+        )
+    )
+
+
+@app.post("/api/auth/logout")
+def logout(authorization: Optional[str] = Header(None)):
+    """
+    Cierra sesión (invalida el token)
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    
+    token = authorization.replace("Bearer ", "")
+    auth_service.logout_user(token)
+    
+    return {"message": "Logout exitoso"}
+
+
+@app.get("/api/auth/me", response_model=auth_schemas.UserResponse)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """
+    Obtiene la información del usuario actual
+    """
+    return auth_schemas.UserResponse.from_orm(current_user)
+
+
 @app.post("/api/posts/adapt")
-def adapt_post_content(request: schemas.AdaptRequest):
+def adapt_post_content(request: schemas.AdaptRequest, current_user: User = Depends(get_current_user) ):
     """
     Recibe un título, contenido y lista de redes,
     y devuelve las adaptaciones generadas por el LLM.
@@ -51,7 +178,7 @@ def adapt_post_content(request: schemas.AdaptRequest):
 
 
 @app.post("/api/test/facebook")
-def test_post_facebook(request: schemas.TestPostRequest):
+def test_post_facebook(request: schemas.TestPostRequest, current_user: User = Depends(get_current_user)):
     """ 
     Endpoint para publicar en Facebook
     - VALIDACIÓN de contenido académico
@@ -117,7 +244,7 @@ def test_post_facebook(request: schemas.TestPostRequest):
 
 
 @app.post("/api/test/instagram")
-def test_post_instagram(request: schemas.TestPostRequest):
+def test_post_instagram(request: schemas.TestPostRequest, current_user: User = Depends(get_current_user)):
     """ 
     Endpoint para publicar en Instagram
     - VALIDACIÓN de contenido académico
@@ -196,7 +323,7 @@ def test_post_instagram(request: schemas.TestPostRequest):
 
 
 @app.post("/api/test/linkedin")
-def test_post_linkedin(request: schemas.TestPostRequest):
+def test_post_linkedin(request: schemas.TestPostRequest, current_user: User = Depends(get_current_user)):
     """ 
     Endpoint para publicar en LinkedIn 
     - VALIDACIÓN de contenido académico
@@ -263,7 +390,7 @@ def test_post_linkedin(request: schemas.TestPostRequest):
 
 
 @app.post("/api/test/whatsapp")
-def test_post_whatsapp_status(request: schemas.TestPostRequest):
+def test_post_whatsapp_status(request: schemas.TestPostRequest, current_user: User = Depends(get_current_user)):
     """ 
     🆕 Endpoint para publicar ESTADO en WhatsApp usando Whapi.Cloud
     - VALIDACIÓN de contenido académico
@@ -332,7 +459,7 @@ def test_post_whatsapp_status(request: schemas.TestPostRequest):
     }
 
 @app.post("/api/test/tiktok")
-def test_post_tiktok(request: schemas.TestPostRequest):
+def test_post_tiktok(request: schemas.TestPostRequest, current_user: User = Depends(get_current_user)):
     """ 
     Endpoint para publicar en TikTok (PRIVADO)
     🆕 Ahora usa tts_text para audio limpio sin emojis
@@ -422,7 +549,7 @@ def test_post_tiktok(request: schemas.TestPostRequest):
 
 
 @app.post("/api/posts/publish-multi", response_model=schemas.MultiNetworkPostResponse)
-def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest):
+def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest, current_user: User = Depends(get_current_user)):
     """
     🆕 ENDPOINT PRINCIPAL: Publica en múltiples redes sociales simultáneamente
     

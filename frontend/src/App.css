@@ -22,6 +22,77 @@ body {
   margin: 0 auto;
 }
 
+/* ========== HEADER CON USUARIO ========== */
+.app-header {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 1rem 2rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-left h1 {
+  font-size: 1.5rem;
+  color: #2d3748;
+  margin-bottom: 0.25rem;
+}
+
+.header-left p {
+  color: #718096;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f7fafc;
+  border-radius: 20px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.user-icon {
+  font-size: 1.2rem;
+}
+
+.user-name {
+  font-size: 0.9rem;
+}
+
+.logout-button {
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.logout-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(252, 129, 129, 0.4);
+}
+
+.logout-button:active {
+  transform: scale(0.95);
+}
+
 /* ========== HEADER ========== */
 .chat-header {
   background: rgba(255, 255, 255, 0.95);
@@ -183,6 +254,14 @@ body {
   white-space: pre-wrap;
 }
 
+.selected-networks {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
 /* Error */
 .message-error .message-content {
   background: #fff5f5;
@@ -222,6 +301,180 @@ body {
   color: #4a5568;
   font-size: 1rem;
   margin-bottom: 0.75rem;
+}
+
+/* 🆕 MULTI-RED RESULT STYLES */
+.multi-red-result {
+  max-width: 100%;
+}
+
+.resumen-section {
+  background: linear-gradient(135deg, #e6f3ff 0%, #f0e6ff 100%);
+  border-left: 3px solid #667eea;
+}
+
+.resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.resumen-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.resumen-label {
+  font-size: 0.85rem;
+  color: #4a5568;
+  font-weight: 500;
+}
+
+.resumen-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.resumen-value.success {
+  color: #38a169;
+}
+
+.resumen-value.error {
+  color: #e53e3e;
+}
+
+.networks-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.network-result {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-left: 3px solid #e2e8f0;
+}
+
+.network-result.exitoso {
+  border-left-color: #48bb78;
+}
+
+.network-result.error {
+  border-left-color: #fc8181;
+}
+
+.network-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.network-icon {
+  font-size: 1.5rem;
+}
+
+.network-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #2d3748;
+  flex: 1;
+}
+
+.network-status {
+  font-size: 1.2rem;
+}
+
+.network-status.exitoso {
+  color: #38a169;
+}
+
+.network-status.error {
+  color: #e53e3e;
+}
+
+.network-success-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.adapted-text-mini {
+  font-size: 0.9rem;
+  color: #4a5568;
+  line-height: 1.5;
+  background: #f7fafc;
+  padding: 0.75rem;
+  border-radius: 6px;
+}
+
+.hashtags-container-mini {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.hashtag-mini {
+  background: #e2e8f0;
+  color: #4a5568;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.view-post-btn-mini {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+  align-self: flex-start;
+}
+
+.view-post-btn-mini:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+.network-error-details {
+  padding: 0.75rem;
+  background: #fff5f5;
+  border-radius: 6px;
+}
+
+.network-id {
+  font-size: 0.85rem;
+  color: #718096;
+}
+
+.tiktok-info {
+  background: #f7fafc;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.tiktok-info p {
+  margin: 0.25rem 0;
+  color: #4a5568;
+}
+
+.tiktok-note {
+  color: #38a169;
+  font-weight: 500;
+  margin-top: 0.5rem !important;
 }
 
 /* Validación */
@@ -359,6 +612,17 @@ code {
   gap: 1rem;
 }
 
+/* 🆕 Multi-Red Indicator */
+.multi-red-indicator {
+  text-align: center;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #e6f3ff 0%, #f0e6ff 100%);
+  border-radius: 8px;
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
 /* Social Selector */
 .social-selector {
   display: flex;
@@ -391,6 +655,10 @@ code {
   border-color: transparent;
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.social-btn-tiktok.active {
+  background: linear-gradient(135deg, #00f2ea 0%, #ff0050 100%);
 }
 
 /* Input Wrapper */
@@ -456,6 +724,27 @@ code {
   color: #a0aec0;
 }
 
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #25D366;
+  color: white;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+.whatsapp-note {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #e7f9ed;
+  border-left: 3px solid #25D366;
+  border-radius: 8px;
+  color: #1a8c45;
+  font-weight: 500;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 768px) {
   .chat-header {
@@ -501,6 +790,14 @@ code {
     width: 50px;
     height: 50px;
   }
+
+  .resumen-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .networks-results {
+    gap: 0.75rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -520,30 +817,11 @@ code {
     font-size: 0.9rem;
   }
 
-  .status-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  background: #25D366;
-  color: white;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  margin-left: 0.5rem;
-}
+  .resumen-grid {
+    grid-template-columns: 1fr;
+  }
 
-.whatsapp-note {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: #e7f9ed;
-  border-left: 3px solid #25D366;
-  border-radius: 8px;
-  color: #1a8c45;
-  font-weight: 500;
+  .resumen-value {
+    font-size: 1.25rem;
+  }
 }
-
-.social-btn-tiktok.active {
-  background: linear-gradient(135deg, #00f2ea 0%, #ff0050 100%);
-}
-
-}
-

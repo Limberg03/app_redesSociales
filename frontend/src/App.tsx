@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css';
+import Login from './auth/Login';
 
 // Tipos de TypeScript
 interface Validacion {
@@ -12,6 +13,7 @@ interface Adaptacion {
   hashtags: string[];
   character_count: number;
   suggested_image_prompt?: string;
+  tts_text?: string;
 }
 
 interface ImagenGenerada {
@@ -29,7 +31,7 @@ interface Resultado {
   validacion: Validacion;
   adaptacion: Adaptacion;
   imagen_generada?: ImagenGenerada;
-  publicacion?: Publicacion;  // ✅ Opcional para WhatsApp
+  publicacion?: Publicacion;
   mensaje: string;
   envio?: {
     message_sid: string;
@@ -39,6 +41,41 @@ interface Resultado {
   };
 }
 
+// 🆕 Tipos para publicación multi-red
+interface ResultadoRedSocial {
+  estado: 'exitoso' | 'error';
+  id?: string;
+  link?: string;
+  error?: string;
+  mensaje?: string;
+  adaptacion?: Adaptacion;
+  imagen_url?: string;
+  share_url?: string;
+  publish_id?: string;
+  video_id?: string;
+  como_ver?: string[];
+  cuenta?: string;
+  visibilidad?: string;
+  nota?: string;
+}
+
+interface ResumenMultiRed {
+  total_redes: number;
+  redes_validas: number;
+  exitosos: number;
+  fallidos: number;
+  tasa_exito: string;
+  tiempo_segundos: number;
+}
+
+interface ResultadoMultiRed {
+  validacion: Validacion;
+  resultados: {
+    [key: string]: ResultadoRedSocial;
+  };
+  resumen: ResumenMultiRed;
+}
+
 interface ErrorDetail {
   mensaje?: string;
   error?: string;
@@ -46,22 +83,74 @@ interface ErrorDetail {
 
 interface Mensaje {
   id: number;
-  tipo: 'usuario' | 'sistema' | 'error';
+  tipo: 'usuario' | 'sistema' | 'error' | 'multi-red';
   texto: string;
   redSocial: string;
+  redesSeleccionadas?: string[];
   resultado?: Resultado;
+  resultadoMultiRed?: ResultadoMultiRed;
   timestamp: Date;
 }
+
+type RedSocial = 'facebook' | 'instagram' | 'linkedin' | 'whatsapp' | 'tiktok';
 
 function App() {
   const [texto, setTexto] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false); 
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const [redSocial, setRedSocial] = useState<'facebook' | 'instagram' | 'linkedin' | 'whatsapp' | 'tiktok'>('facebook');
+  // 🆕 Ahora soporta selección múltiple
+  const [redesSeleccionadas, setRedesSeleccionadas] = useState<Set<RedSocial>>(new Set(['facebook']));
+  // 🆕 Modo de publicación
+  const [modoMultiRed, setModoMultiRed] = useState<boolean>(false);
+  
+  // 🆕 Estados de autenticación
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [token, setToken] = useState<string | null>(null);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isPublishingRef = useRef<boolean>(false);
+
+  // 🆕 Verificar si hay sesión guardada al cargar
+  useEffect(() => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (savedToken && savedUser) {
+      setToken(savedToken);
+      setCurrentUser(JSON.parse(savedUser));
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // 🆕 Función de login exitoso
+  const handleLoginSuccess = (newToken: string, user: any) => {
+    setToken(newToken);
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+  };
+
+  // 🆕 Función de logout
+  const handleLogout = async () => {
+    try {
+      await fetch('http://127.0.0.1:8000/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setMensajes([]);
+    }
+  };
 
   // Auto-scroll optimizado
   const scrollToBottom = useCallback(() => {
@@ -78,61 +167,43 @@ function App() {
     setMensajes(prev => [...prev, mensaje]);
   }, []);
 
-  const publicar = async () => {
-    if (isPublishingRef.current || loading) {
-      console.log('⚠️ Ya hay una publicación en proceso');
-      return;
-    }
-
-    if (!texto.trim()) {
-      agregarMensaje({
-        id: Date.now(),
-        tipo: 'error',
-        texto: 'Por favor, ingresa un texto',
-        redSocial: redSocial,
-        timestamp: new Date()
-      });
-      return;
-    }
-
-    isPublishingRef.current = true;
-
-    agregarMensaje({
-      id: Date.now(),
-      tipo: 'usuario',
-      texto: texto,
-      redSocial: redSocial,
-      timestamp: new Date()
+  // 🆕 Toggle de selección de red social
+  const toggleRedSocial = (red: RedSocial) => {
+    setRedesSeleccionadas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(red)) {
+        // Si es la única seleccionada, no permitir deseleccionar
+        if (newSet.size === 1) return prev;
+        newSet.delete(red);
+      } else {
+        newSet.add(red);
+      }
+      
+      // Activar modo multi-red si hay más de una seleccionada
+      setModoMultiRed(newSet.size > 1);
+      
+      return newSet;
     });
+  };
 
-    const textoActual = texto;
-    setTexto('');
-    setLoading(true);
-
+  // 🆕 Publicación multi-red
+  const publicarMultiRed = async (textoActual: string, redes: string[]) => {
     try {
-      let endpoint = '';
-      if (redSocial === 'facebook') {
-        endpoint = 'http://127.0.0.1:8000/api/test/facebook';
-      } else if (redSocial === 'instagram') {
-        endpoint = 'http://127.0.0.1:8000/api/test/instagram';
-      } else if (redSocial === 'linkedin') {
-        endpoint = 'http://127.0.0.1:8000/api/test/linkedin';
-      } else if (redSocial === 'whatsapp') {
-        endpoint = 'http://127.0.0.1:8000/api/test/whatsapp';
-      } else if (redSocial === 'tiktok') {
-  endpoint = 'http://127.0.0.1:8000/api/test/tiktok';
-}
+      const endpoint = 'http://127.0.0.1:8000/api/posts/publish-multi';
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      // Timeout más largo para multi-red (3 minutos)
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
 
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,  // 🔒 Agregar token
         },
         body: JSON.stringify({
           text: textoActual,
+          target_networks: redes,
         }),
         signal: controller.signal,
       });
@@ -148,35 +219,147 @@ function App() {
         throw new Error(errorMessage);
       }
 
-      // ✅ NORMALIZAR LA RESPUESTA SEGÚN LA RED SOCIAL
-      let resultadoNormalizado: Resultado;
+      return data as ResultadoMultiRed;
+    } catch (error) {
+      throw error;
+    }
+  };
 
-      if (redSocial === 'whatsapp') {
-        // WhatsApp tiene estructura diferente
-        resultadoNormalizado = {
-          validacion: data.validacion || { es_academico: true, razon: 'Validado' },
-          adaptacion: data.adaptacion || { text: textoActual, hashtags: [], character_count: textoActual.length },
-          mensaje: data.mensaje || '✅ Mensaje enviado',
-          envio: data.envio || { message_sid: 'N/A', status: 'enviado', to: 'N/A' },
-          // WhatsApp no tiene publicacion.link como las otras redes
-          publicacion: {
-            id: data.envio?.message_sid || 'N/A',
-            link: undefined // WhatsApp no tiene link público
-          }
-        };
-      } else {
-        // Facebook, Instagram, LinkedIn tienen estructura estándar
-        resultadoNormalizado = data as Resultado;
-      }
+  // 🆕 Publicación individual (mantiene compatibilidad)
+  const publicarIndividual = async (textoActual: string, red: string) => {
+    let endpoint = '';
+    if (red === 'facebook') {
+      endpoint = 'http://127.0.0.1:8000/api/test/facebook';
+    } else if (red === 'instagram') {
+      endpoint = 'http://127.0.0.1:8000/api/test/instagram';
+    } else if (red === 'linkedin') {
+      endpoint = 'http://127.0.0.1:8000/api/test/linkedin';
+    } else if (red === 'whatsapp') {
+      endpoint = 'http://127.0.0.1:8000/api/test/whatsapp';
+    } else if (red === 'tiktok') {
+      endpoint = 'http://127.0.0.1:8000/api/test/tiktok';
+    }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,  // 🔒 Agregar token
+      },
+      body: JSON.stringify({
+        text: textoActual,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    const data = await response.json();
+
+    if (!response.ok) {
+      const errorDetail = data.detail as ErrorDetail | string;
+      const errorMessage = typeof errorDetail === 'string' 
+        ? errorDetail 
+        : errorDetail?.mensaje || errorDetail?.error || 'Error al publicar';
+      throw new Error(errorMessage);
+    }
+
+    return data;
+  };
+
+  const publicar = async () => {
+    if (isPublishingRef.current || loading) {
+      console.log('⚠️ Ya hay una publicación en proceso');
+      return;
+    }
+
+    if (!texto.trim()) {
       agregarMensaje({
-        id: Date.now() + 1,
-        tipo: 'sistema',
-        texto: `✅ Publicado en ${redSocial}`,
-        redSocial: redSocial,
-        resultado: resultadoNormalizado,
+        id: Date.now(),
+        tipo: 'error',
+        texto: 'Por favor, ingresa un texto',
+        redSocial: '',
         timestamp: new Date()
       });
+      return;
+    }
+
+    if (redesSeleccionadas.size === 0) {
+      agregarMensaje({
+        id: Date.now(),
+        tipo: 'error',
+        texto: 'Por favor, selecciona al menos una red social',
+        redSocial: '',
+        timestamp: new Date()
+      });
+      return;
+    }
+
+    isPublishingRef.current = true;
+
+    const redesArray = Array.from(redesSeleccionadas);
+    
+    agregarMensaje({
+      id: Date.now(),
+      tipo: 'usuario',
+      texto: texto,
+      redSocial: modoMultiRed ? 'multi-red' : redesArray[0],
+      redesSeleccionadas: redesArray,
+      timestamp: new Date()
+    });
+
+    const textoActual = texto;
+    setTexto('');
+    setLoading(true);
+
+    try {
+      if (modoMultiRed) {
+        // 🆕 PUBLICACIÓN MULTI-RED
+        const resultadoMulti = await publicarMultiRed(textoActual, redesArray);
+        
+        agregarMensaje({
+          id: Date.now() + 1,
+          tipo: 'multi-red',
+          texto: `📊 Publicación en ${redesArray.length} redes completada`,
+          redSocial: 'multi-red',
+          redesSeleccionadas: redesArray,
+          resultadoMultiRed: resultadoMulti,
+          timestamp: new Date()
+        });
+      } else {
+        // Publicación individual (comportamiento original)
+        const red = redesArray[0];
+        const data = await publicarIndividual(textoActual, red);
+
+        // Normalizar la respuesta según la red social
+        let resultadoNormalizado: Resultado;
+
+        if (red === 'whatsapp') {
+          resultadoNormalizado = {
+            validacion: data.validacion || { es_academico: true, razon: 'Validado' },
+            adaptacion: data.adaptacion || { text: textoActual, hashtags: [], character_count: textoActual.length },
+            mensaje: data.mensaje || '✅ Mensaje enviado',
+            envio: data.envio || { message_sid: 'N/A', status: 'enviado', to: 'N/A' },
+            publicacion: {
+              id: data.envio?.message_sid || 'N/A',
+              link: undefined
+            }
+          };
+        } else {
+          resultadoNormalizado = data as Resultado;
+        }
+
+        agregarMensaje({
+          id: Date.now() + 1,
+          tipo: 'sistema',
+          texto: `✅ Publicado en ${red}`,
+          redSocial: red,
+          resultado: resultadoNormalizado,
+          timestamp: new Date()
+        });
+      }
 
     } catch (err) {
       let errorMessage = 'Error desconocido';
@@ -193,7 +376,7 @@ function App() {
         id: Date.now() + 2,
         tipo: 'error',
         texto: errorMessage,
-        redSocial: redSocial,
+        redSocial: '',
         timestamp: new Date()
       });
     } finally {
@@ -219,6 +402,8 @@ function App() {
       case 'instagram': return '📸';
       case 'linkedin': return '💼';
       case 'whatsapp': return '💬';
+      case 'tiktok': return '🎵';
+      case 'multi-red': return '🌐';
       default: return '📱';
     }
   };
@@ -246,10 +431,10 @@ function App() {
         </svg>
       );
       case 'tiktok': return (
-  <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1.04-.1z"/>
-  </svg>
-);
+        <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+          <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1.04-.1z"/>
+        </svg>
+      );
       default: return null;
     }
   };
@@ -257,17 +442,40 @@ function App() {
   return (
     <div className="app-chat">
       
-      {/* Área de chat */}
-      <div className="chat-container">
-        <div className="chat-messages">
-          {mensajes.length === 0 && (
-            <div className="welcome-message">
-              <h2>👋 ¡Bienvenido!</h2>
-              <p>Escribe tu contenido académico y selecciona la red social donde quieres publicarlo.</p>
+      {/* 🆕 Mostrar Login si no está autenticado */}
+      {!isAuthenticated ? (
+        <Login onLoginSuccess={handleLoginSuccess} />
+      ) : (
+        <>
+          {/* 🆕 Header con información de usuario */}
+          <div className="app-header">
+            <div className="header-left">
+              <h1>🎓 Sistema Multi-Red Social</h1>
+              <p>UAGRM - Gestión de Contenido Académico</p>
+            </div>
+            <div className="header-right">
+              <div className="user-info">
+                <span className="user-icon">👤</span>
+                <span className="user-name">{currentUser?.username}</span>
+              </div>
+              <button className="logout-button" onClick={handleLogout}>
+                🚪 Cerrar Sesión
+              </button>
+            </div>
+          </div>
+
+          {/* Área de chat */}
+          <div className="chat-container">
+            <div className="chat-messages">
+              {mensajes.length === 0 && (
+                <div className="welcome-message">
+                  <h2>👋 ¡Bienvenido, {currentUser?.username}!</h2>
+              <p>Escribe tu contenido académico y selecciona las redes sociales donde quieres publicarlo.</p>
               <div className="features">
                 <div className="feature">✨ Adaptación automática con IA</div>
                 <div className="feature">📝 Validación de contenido académico</div>
-                <div className="feature">🚀 Publicación instantánea</div>
+                <div className="feature">🚀 Publicación individual o múltiple</div>
+                <div className="feature">🌐 Multi-red simultánea</div>
               </div>
             </div>
           )}
@@ -283,7 +491,15 @@ function App() {
                 </span>
                 {mensaje.tipo === 'usuario' && (
                   <span className="message-red-social">
-                    {getIconoRedSocial(mensaje.redSocial)} {mensaje.redSocial}
+                    {modoMultiRed ? (
+                      <>
+                        🌐 {mensaje.redesSeleccionadas?.map(r => getIconoRedSocial(r)).join(' ')}
+                      </>
+                    ) : (
+                      <>
+                        {getIconoRedSocial(mensaje.redSocial)} {mensaje.redSocial}
+                      </>
+                    )}
                   </span>
                 )}
               </div>
@@ -292,6 +508,11 @@ function App() {
                 {mensaje.tipo === 'usuario' && (
                   <div className="user-message">
                     <p>{mensaje.texto}</p>
+                    {mensaje.redesSeleccionadas && mensaje.redesSeleccionadas.length > 1 && (
+                      <div className="selected-networks">
+                        <strong>Redes seleccionadas:</strong> {mensaje.redesSeleccionadas.join(', ')}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -301,6 +522,123 @@ function App() {
                   </div>
                 )}
 
+                {/* 🆕 RESULTADO MULTI-RED */}
+                {mensaje.tipo === 'multi-red' && mensaje.resultadoMultiRed && (
+                  <div className="system-message multi-red-result">
+                    <div className="result-header">
+                      <h3>{mensaje.texto}</h3>
+                    </div>
+
+                    {/* Resumen General */}
+                    <div className="result-section resumen-section">
+                      <h4>📊 Resumen General</h4>
+                      <div className="resumen-grid">
+                        <div className="resumen-item">
+                          <span className="resumen-label">✅ Exitosos:</span>
+                          <span className="resumen-value success">{mensaje.resultadoMultiRed.resumen.exitosos}</span>
+                        </div>
+                        <div className="resumen-item">
+                          <span className="resumen-label">❌ Fallidos:</span>
+                          <span className="resumen-value error">{mensaje.resultadoMultiRed.resumen.fallidos}</span>
+                        </div>
+                        <div className="resumen-item">
+                          <span className="resumen-label">📈 Tasa de éxito:</span>
+                          <span className="resumen-value">{mensaje.resultadoMultiRed.resumen.tasa_exito}</span>
+                        </div>
+                        <div className="resumen-item">
+                          <span className="resumen-label">⏱️ Tiempo:</span>
+                          <span className="resumen-value">{mensaje.resultadoMultiRed.resumen.tiempo_segundos}s</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Validación */}
+                    {mensaje.resultadoMultiRed.validacion && (
+                      <div className="result-section">
+                        <h4>📋 Validación</h4>
+                        <div className="validation-badge">
+                          {mensaje.resultadoMultiRed.validacion.es_academico ? '✅ Contenido Académico' : '❌ No Académico'}
+                        </div>
+                        <p className="validation-reason">{mensaje.resultadoMultiRed.validacion.razon}</p>
+                      </div>
+                    )}
+
+                    {/* Resultados por Red Social */}
+                    <div className="result-section">
+                      <h4>🌐 Resultados por Red Social</h4>
+                      <div className="networks-results">
+                        {Object.entries(mensaje.resultadoMultiRed.resultados).map(([red, resultado]) => (
+                          <div key={red} className={`network-result ${resultado.estado}`}>
+                            <div className="network-header">
+                              <span className="network-icon">{getIconoRedSocial(red)}</span>
+                              <span className="network-name">{red.toUpperCase()}</span>
+                              <span className={`network-status ${resultado.estado}`}>
+                                {resultado.estado === 'exitoso' ? '✅' : '❌'}
+                              </span>
+                            </div>
+
+                            {resultado.estado === 'exitoso' ? (
+                              <div className="network-success-details">
+                                {/* Texto adaptado */}
+                                {resultado.adaptacion && (
+                                  <div className="adapted-text-mini">
+                                    {resultado.adaptacion.text.substring(0, 150)}...
+                                    <div className="hashtags-container-mini">
+                                      {resultado.adaptacion.hashtags?.slice(0, 3).map((tag, idx) => (
+                                        <span key={idx} className="hashtag-mini">{tag}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Link de publicación */}
+                                {resultado.link && (
+                                  <a 
+                                    href={resultado.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="view-post-btn-mini"
+                                  >
+                                    Ver Publicación →
+                                  </a>
+                                )}
+
+                                {/* Share URL para TikTok */}
+                                {resultado.share_url && (
+                                  <a 
+                                    href={resultado.share_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="view-post-btn-mini"
+                                  >
+                                    Ver Video en TikTok →
+                                  </a>
+                                )}
+
+                                {/* Info adicional para TikTok */}
+                                {red === 'tiktok' && resultado.como_ver && (
+                                  <div className="tiktok-info">
+                                    <p><strong>Cuenta:</strong> {resultado.cuenta}</p>
+                                    <p><strong>Visibilidad:</strong> {resultado.visibilidad}</p>
+                                    {resultado.nota && <p className="tiktok-note">{resultado.nota}</p>}
+                                  </div>
+                                )}
+
+                                {resultado.id && <p className="network-id">ID: <code>{resultado.id}</code></p>}
+                              </div>
+                            ) : (
+                              <div className="network-error-details">
+                                <p className="error-message">{resultado.error || resultado.mensaje}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* RESULTADO INDIVIDUAL (comportamiento original) */}
                 {mensaje.tipo === 'sistema' && mensaje.resultado && (
                   <div className="system-message">
                     <div className="result-header">
@@ -406,7 +744,11 @@ function App() {
                   <span></span>
                   <span></span>
                 </div>
-                <p>Procesando tu publicación...</p>
+                <p>
+                  {modoMultiRed 
+                    ? `Publicando en ${redesSeleccionadas.size} redes sociales...` 
+                    : 'Procesando tu publicación...'}
+                </p>
               </div>
             </div>
           )}
@@ -416,43 +758,50 @@ function App() {
 
         {/* Input Area */}
         <div className="chat-input-area">
-          {/* Selector de red social */}
+          {/* 🆕 Indicador de modo multi-red */}
+          {modoMultiRed && (
+            <div className="multi-red-indicator">
+              🌐 Modo Multi-Red Activo ({redesSeleccionadas.size} redes seleccionadas)
+            </div>
+          )}
+
+          {/* Selector de red social con selección múltiple */}
           <div className="social-selector">
             <button
-              className={`social-btn social-btn-facebook ${redSocial === 'facebook' ? 'active' : ''}`}
-              onClick={() => setRedSocial('facebook')}
+              className={`social-btn social-btn-facebook ${redesSeleccionadas.has('facebook') ? 'active' : ''}`}
+              onClick={() => toggleRedSocial('facebook')}
               title="Facebook"
             >
               {getSocialIcon('facebook')}
             </button>
             <button
-              className={`social-btn social-btn-instagram ${redSocial === 'instagram' ? 'active' : ''}`}
-              onClick={() => setRedSocial('instagram')}
+              className={`social-btn social-btn-instagram ${redesSeleccionadas.has('instagram') ? 'active' : ''}`}
+              onClick={() => toggleRedSocial('instagram')}
               title="Instagram"
             >
               {getSocialIcon('instagram')}
             </button>
             <button
-              className={`social-btn social-btn-linkedin ${redSocial === 'linkedin' ? 'active' : ''}`}
-              onClick={() => setRedSocial('linkedin')}
+              className={`social-btn social-btn-linkedin ${redesSeleccionadas.has('linkedin') ? 'active' : ''}`}
+              onClick={() => toggleRedSocial('linkedin')}
               title="LinkedIn"
             >
               {getSocialIcon('linkedin')}
             </button>
             <button
-              className={`social-btn social-btn-whatsapp ${redSocial === 'whatsapp' ? 'active' : ''}`}
-              onClick={() => setRedSocial('whatsapp')}
+              className={`social-btn social-btn-whatsapp ${redesSeleccionadas.has('whatsapp') ? 'active' : ''}`}
+              onClick={() => toggleRedSocial('whatsapp')}
               title="WhatsApp"
             >
               {getSocialIcon('whatsapp')}
             </button>
             <button
-  className={`social-btn social-btn-tiktok ${redSocial === 'tiktok' ? 'active' : ''}`}
-  onClick={() => setRedSocial('tiktok')}
-  title="TikTok"
->
-  {getSocialIcon('tiktok')}
-</button>
+              className={`social-btn social-btn-tiktok ${redesSeleccionadas.has('tiktok') ? 'active' : ''}`}
+              onClick={() => toggleRedSocial('tiktok')}
+              title="TikTok"
+            >
+              {getSocialIcon('tiktok')}
+            </button>
           </div>
 
           {/* Input de texto */}
@@ -463,7 +812,11 @@ function App() {
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={`Escribe tu contenido académico para ${redSocial}...`}
+              placeholder={
+                modoMultiRed 
+                  ? `Escribe tu contenido para publicar en ${redesSeleccionadas.size} redes...`
+                  : `Escribe tu contenido académico para ${Array.from(redesSeleccionadas)[0]}...`
+              }
               rows={3}
               disabled={loading}
             />
@@ -472,15 +825,19 @@ function App() {
               onClick={publicar}
               disabled={loading || !texto.trim()}
             >
-              {loading ? '⏳' : '🚀'}
+              {loading ? '⏳' : modoMultiRed ? '🌐' : '🚀'}
             </button>
           </div>
 
           <div className="input-hint">
-            💡 Presiona Enter para publicar • Shift+Enter para nueva línea
+            💡 {modoMultiRed 
+              ? 'Click en los botones para agregar/quitar redes • Presiona Enter para publicar'
+              : 'Presiona Enter para publicar • Shift+Enter para nueva línea'}
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
