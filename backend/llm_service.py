@@ -417,6 +417,7 @@ def generar_imagen_ia_base64(prompt_imagen: str) -> str:
         
         response = httpx.post(
             "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+            
             headers={
                 "Authorization": f"Bearer {STABILITY_KEY}",
                 "Content-Type": "application/json",
