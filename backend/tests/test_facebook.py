@@ -134,6 +134,7 @@ class TestFacebookIntegration:
         
         # Debe llamar a la API incluso con texto vacío
         assert mock_post.called
+        # aqui  debo retornar algo mas. 
     
     
     def test_post_to_facebook_verifica_variables_entorno(self, mocker):

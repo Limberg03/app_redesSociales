@@ -330,73 +330,116 @@ def adaptar_contenido(titulo: str, contenido: str, red_social: str):
         return {"error": f"Error al generar contenido para {red_social}."}
 
 
+# ============================================
+# 🆕 GENERACIÓN DE IMÁGENES CON REPLICATE
+# ============================================
+
 def generar_imagen_ia(prompt_imagen: str) -> str:
     """
-    Genera imagen y sube a Imgur - Para Instagram (necesita URL)
+    Genera imagen con IA y sube a Imgur
     """
     try:
-        # 1. Generar imagen con Pollinations
-        prompt_limpio = prompt_imagen[:300].replace(" ", "%20")
-        url_pollinations = f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"
+        import httpx
+        import base64
         
-        print(f"🎨 Generando imagen con Pollinations...")
-        response = httpx.get(url_pollinations, timeout=30.0)
+        STABILITY_KEY = os.getenv("STABILITY_API_KEY")
+        
+        print(f"🎨 Generando con Stability AI...")
+        print(f"📝 Prompt: {prompt_imagen[:100]}...")
+        
+        response = httpx.post(
+            "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+            headers={
+                "Authorization": f"Bearer {STABILITY_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "text_prompts": [{"text": f"professional university photo, {prompt_imagen}, realistic, high quality"}],
+                "cfg_scale": 7,
+                "height": 1024,
+                "width": 1024,
+                "samples": 1,
+            },
+            timeout=60.0
+        )
         response.raise_for_status()
-        imagen_bytes = response.content
+        
+        result = response.json()
+        imagen_base64_str = result["artifacts"][0]["base64"]
+        imagen_bytes = base64.b64decode(imagen_base64_str)
+        
         print(f"✅ Imagen generada ({len(imagen_bytes)} bytes)")
         
-        # 2. Subir a Imgur
-        imgur_client_id = "546c25a59c58ad7"
-        imgur_headers = {"Authorization": f"Client-ID {imgur_client_id}"}
-        
-        print("📤 Subiendo imagen a Imgur...")
+        # Subir a Imgur
+        print("📤 Subiendo a Imgur...")
         imgur_response = httpx.post(
             "https://api.imgur.com/3/upload",
-            headers=imgur_headers,
+            headers={"Authorization": "Client-ID 546c25a59c58ad7"},
             files={"image": imagen_bytes},
             timeout=30.0
         )
         imgur_response.raise_for_status()
-        imgur_result = imgur_response.json()
         
-        if imgur_result["success"]:
-            url_imgur = imgur_result["data"]["link"]
-            print(f"✅ Imagen subida a Imgur: {url_imgur}")
-            return url_imgur
-        else:
-            return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"
-        
+        url_imgur = imgur_response.json()["data"]["link"]
+        print(f"✅ Imgur: {url_imgur}")
+        return url_imgur
+            
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/University_Lecture_Hall.jpg/1200px-University_Lecture_Hall.jpg"
+        print(f"❌ Error con IA: {e}")
+        # Fallback a imagen estática que funciona
+        print("⚠️ Usando imagen de respaldo...")
+        
+        response = httpx.get("https://picsum.photos/id/180/1080/1080", follow_redirects=True)
+        imagen_bytes = response.content
+        
+        imgur_response = httpx.post(
+            "https://api.imgur.com/3/upload",
+            headers={"Authorization": "Client-ID 546c25a59c58ad7"},
+            files={"image": imagen_bytes}
+        )
+        return imgur_response.json()["data"]["link"]
 
 
 def generar_imagen_ia_base64(prompt_imagen: str) -> str:
-    """
-    Genera imagen en base64 - Para WhatsApp Status
-    """
     try:
+        import httpx
         import base64
         
-        prompt_limpio = prompt_imagen[:300].replace(" ", "%20")
-        url_pollinations = f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"
+        STABILITY_KEY = os.getenv("STABILITY_API_KEY")
         
-        print(f"🎨 Generando imagen...")
-        response = httpx.get(url_pollinations, timeout=30.0)
-        response.raise_for_status()
-        imagen_bytes = response.content
-        print(f"✅ Imagen generada ({len(imagen_bytes)} bytes)")
+        if not STABILITY_KEY:
+            return "https://picsum.photos/800/800"
         
-        # Convertir a base64
-        imagen_base64 = base64.b64encode(imagen_bytes).decode('utf-8')
-        data_url = f"data:image/jpeg;base64,{imagen_base64}"
-        print(f"✅ Convertida a base64")
+        print(f"🎨 Generando con Stability AI (base64)...")
+        
+        response = httpx.post(
+            "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+            headers={
+                "Authorization": f"Bearer {STABILITY_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "text_prompts": [{"text": f"professional photo, {prompt_imagen}, university, realistic"}],
+                "cfg_scale": 7,
+                "height": 1024,
+                "width": 1024,
+                "samples": 1,
+            },
+            timeout=60.0
+        )
+        
+        result = response.json()
+        imagen_base64_str = result["artifacts"][0]["base64"]
+        
+        # Convertir a data URL
+        data_url = f"data:image/png;base64,{imagen_base64_str}"
+        
+        print(f"✅ Imagen generada en base64")
         return data_url
         
     except Exception as e:
         print(f"❌ Error: {e}")
-        prompt_limpio = prompt_imagen[:100].replace(" ", "%20")
-        return f"https://image.pollinations.ai/prompt/{prompt_limpio}?width=800&height=800&nologo=true"
+        return "https://picsum.photos/800/800"
 
 
 def extraer_keywords_con_llm(texto: str) -> list:
@@ -742,7 +785,7 @@ def generar_guion_narracion(texto_original: str) -> str:
         # Fallback: usar el texto original limpio
         return limpiar_texto_para_tts(texto_original)
 
-def generar_audio_elevenlabs(texto: str, usar_guion_ia: bool = True) -> str:
+def generar_audio_gTTS(texto: str, usar_guion_ia: bool = True) -> str:
     """
     Genera audio con Google TTS (gTTS) - VERSIÓN MEJORADA
     🆕 Ahora con velocidad x1.5
@@ -935,10 +978,10 @@ def generar_video_tiktok(texto_adaptado: str, adaptacion: dict = None) -> str:
     print("🎬 GENERANDO VIDEO PARA TIKTOK")
     print("="*60)
     
-    # 1. Extraer keywords INTELIGENTES
+    # 1.
     keywords = extraer_keywords_con_llm(texto_adaptado)
     
-    # 2. Buscar videos con sistema inteligente
+    # 2. 
     print(f"\n🔍 Buscando videos con keywords específicas...")
     video_urls = buscar_video_pexels_inteligente(keywords)
     
@@ -948,23 +991,23 @@ def generar_video_tiktok(texto_adaptado: str, adaptacion: dict = None) -> str:
     
     print(f"✅ Encontrados {len(video_urls)} videos")
     
-    # 3. Generar audio
+    # 3. 
     if adaptacion and "tts_text" in adaptacion:
         texto_para_audio = adaptacion["tts_text"]
         print(f"✅ Usando tts_text del LLM: {texto_para_audio[:100]}...")
-        audio_path = generar_audio_elevenlabs(texto_para_audio, usar_guion_ia=False)
+        audio_path = generar_audio_gTTS(texto_para_audio, usar_guion_ia=False)
     else:
         print(f"🎬 Generando guión de narración inteligente...")
-        audio_path = generar_audio_elevenlabs(texto_adaptado, usar_guion_ia=True)
+        audio_path = generar_audio_gTTS(texto_adaptado, usar_guion_ia=True)
     
     if not audio_path:
         print("❌ No se pudo generar audio")
         return None
     
-    # 4. Combinar todo
+    # 4. 
     video_final = combinar_videos_con_audio(video_urls, audio_path)
     
-    # Limpiar audio temporal
+    # 
     if audio_path and os.path.exists(audio_path):
         os.unlink(audio_path)
     
