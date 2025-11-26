@@ -60,6 +60,10 @@ def get_conversation_detail(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
     
+    print(f"🔍 [DEBUG] Get Conversation {conversation_id}: {len(conversation.messages)} messages found.")
+    for msg in conversation.messages:
+        print(f"   - [{msg.role}] {msg.content[:50]}...")
+
     return conversation
 
 @router.delete("/conversations/{conversation_id}")
@@ -253,6 +257,16 @@ def create_message(
                     # Estado de publicación
                     if pub_result and "error" not in pub_result:
                         link = pub_result.get("permalink") or pub_result.get("share_url") or pub_result.get("link")
+                        
+                        # Construir link manual para Facebook si no viene en la respuesta
+                        if not link and res['network'] == 'facebook' and 'id' in pub_result:
+                            # El ID suele ser PAGEID_POSTID o solo POSTID
+                            post_id = pub_result['id']
+                            # Si el ID tiene formato PAGE_POST, extraemos la parte del post
+                            if '_' in post_id:
+                                _, post_id = post_id.split('_')
+                            link = f"https://www.facebook.com/{post_id}"
+
                         if link:
                             response_text += f"✅ **Publicado exitosamente**: [Ver Publicación]({link})\n\n"
                         else:

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import './Login.css';
+import { Bot, Lock, Mail, User, ArrowRight, Loader2 } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 interface LoginProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -19,7 +20,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
 
     try {
-      const endpoint = isLogin 
+      const endpoint = isLogin
         ? 'http://127.0.0.1:8000/api/auth/login'
         : 'http://127.0.0.1:8000/api/auth/register';
 
@@ -45,7 +46,7 @@ function Login({ onLoginSuccess }: LoginProps) {
         // Guardar token en localStorage
         localStorage.setItem('token', data.token.access_token);
         localStorage.setItem('user', JSON.stringify(data.token.user));
-        
+
         // Notificar al componente padre
         onLoginSuccess(data.token.access_token, data.token.user);
       }
@@ -58,105 +59,134 @@ function Login({ onLoginSuccess }: LoginProps) {
   };
 
   return (
-    <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h1>🎓 Sistema Multi-Red Social</h1>
-          <p>UAGRM - Gestión de Redes Sociales</p>
-        </div>
-
-        <div className="login-tabs">
-          <button
-            className={`tab ${isLogin ? 'active' : ''}`}
-            onClick={() => {
-              setIsLogin(true);
-              setError('');
-            }}
-          >
-            Iniciar Sesión
-          </button>
-          <button
-            className={`tab ${!isLogin ? 'active' : ''}`}
-            onClick={() => {
-              setIsLogin(false);
-              setError('');
-            }}
-          >
-            Registrarse
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label htmlFor="username">Usuario</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Ingresa tu usuario"
-              required
-              disabled={loading}
-            />
+    <div className="min-h-screen bg-black flex items-center justify-center p-4 font-sans text-gray-100">
+      <div className="w-full max-w-md">
+        {/* Logo / Header */}
+        <div className="text-center mb-10">
+          <div className="w-16 h-16 bg-green-600 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-lg shadow-green-900/20">
+            <Bot size={40} className="text-white" />
           </div>
-
-          {!isLogin && (
-            <div className="form-group">
-              <label htmlFor="email">Email</label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ejemplo@correo.com"
-                required
-                disabled={loading}
-              />
-            </div>
-          )}
-
-          <div className="form-group">
-            <label htmlFor="password">Contraseña</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Ingresa tu contraseña"
-              required
-              disabled={loading}
-            />
-          </div>
-
-          {error && (
-            <div className="error-message">
-              ❌ {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="submit-button"
-            disabled={loading}
-          >
-            {loading ? '⏳ Procesando...' : isLogin ? '🔓 Iniciar Sesión' : '📝 Registrarse'}
-          </button>
-        </form>
-
-        <div className="login-footer">
-          <p>
-            {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}
-            {' '}
-            <button
-              className="link-button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-              }}
-            >
-              {isLogin ? 'Regístrate aquí' : 'Inicia sesión'}
-            </button>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">
+            {isLogin ? 'Welcome back' : 'Create an account'}
+          </h1>
+          <p className="text-gray-400">
+            {isLogin
+              ? 'Enter your credentials to access the workspace'
+              : 'Join the UAGRM Social Media Management System'}
           </p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-xl">
+          <form onSubmit={handleSubmit} className="space-y-5">
+
+            {/* Username */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300 ml-1">Username</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User size={18} className="text-gray-500 group-focus-within:text-green-500 transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="johndoe"
+                  required
+                  disabled={loading}
+                  className="w-full bg-black border border-gray-800 text-white text-sm rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 block w-full pl-10 p-3 outline-none transition-all placeholder-gray-600"
+                />
+              </div>
+            </div>
+
+            {/* Email (Register only) */}
+            {!isLogin && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="text-sm font-medium text-gray-300 ml-1">Email address</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail size={18} className="text-gray-500 group-focus-within:text-green-500 transition-colors" />
+                  </div>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    required
+                    disabled={loading}
+                    className="w-full bg-black border border-gray-800 text-white text-sm rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 block w-full pl-10 p-3 outline-none transition-all placeholder-gray-600"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Password */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300 ml-1">Password</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock size={18} className="text-gray-500 group-focus-within:text-green-500 transition-colors" />
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  disabled={loading}
+                  className="w-full bg-black border border-gray-800 text-white text-sm rounded-xl focus:ring-2 focus:ring-green-500/20 focus:border-green-500 block w-full pl-10 p-3 outline-none transition-all placeholder-gray-600"
+                />
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                {error}
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className={cn(
+                "w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-medium py-3 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-green-900/20",
+                loading && "opacity-70 cursor-not-allowed"
+              )}
+            >
+              {loading ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <>
+                  {isLogin ? 'Sign in' : 'Create account'}
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Footer Toggle */}
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-400">
+              {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
+              <button
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError('');
+                }}
+                className="font-medium text-green-500 hover:text-green-400 transition-colors focus:outline-none hover:underline"
+              >
+                {isLogin ? 'Sign up' : 'Log in'}
+              </button>
+            </p>
+          </div>
+        </div>
+
+        {/* Footer Info */}
+        <div className="mt-8 text-center text-xs text-gray-600">
+          <p>© 2024 UAGRM Social Media System. All rights reserved.</p>
         </div>
       </div>
     </div>

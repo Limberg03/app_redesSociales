@@ -35,7 +35,7 @@ export default function ChatSidebar({
             </div>
 
             {/* Conversation List */}
-            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 scrollbar-thin scrollbar-thumb-gray-700">
+            <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 no-scrollbar">
                 <div className="text-xs font-medium text-gray-500 mb-2 px-2">Recent</div>
                 {conversations.map((conv) => (
                     <div

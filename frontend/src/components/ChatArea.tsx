@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Facebook, Instagram, Video, Loader2, Linkedin, MessageCircle, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Message } from '../App';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatAreaProps {
     messages: Message[];
@@ -94,7 +96,7 @@ export default function ChatArea({
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin scrollbar-thumb-gray-700">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
                 {messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-50">
                         <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4">
@@ -127,10 +129,22 @@ export default function ChatArea({
                                     "relative px-5 py-3.5 text-sm leading-relaxed shadow-sm max-w-[85%]",
                                     msg.role === 'user'
                                         ? "bg-gray-700 text-white rounded-2xl rounded-tr-sm"
-                                        : "text-gray-100 rounded-md" // Assistant messages look transparent/clean like ChatGPT
+                                        : "text-gray-100 rounded-md prose prose-invert max-w-none" // Assistant messages look transparent/clean like ChatGPT
                                 )}
                             >
-                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                {msg.role === 'user' ? (
+                                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                                ) : (
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            a: ({ node, ...props }) => <a {...props} className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" />,
+                                            // img: ({ node, ...props }) => <img {...props} className="rounded-lg max-w-full h-auto mt-2 mb-2" /> // User requested to remove image display
+                                        }}
+                                    >
+                                        {msg.content}
+                                    </ReactMarkdown>
+                                )}
                             </div>
 
                             {/* Avatar User */}
@@ -169,7 +183,7 @@ export default function ChatArea({
                         }}
                         onKeyDown={handleKeyDown}
                         placeholder="Send a message..."
-                        className="w-full bg-transparent text-white placeholder-gray-400 px-4 py-3 pr-12 rounded-xl resize-none outline-none max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600"
+                        className="w-full bg-transparent text-white placeholder-gray-400 px-4 py-3 pr-12 rounded-xl resize-none outline-none max-h-[200px] overflow-y-auto no-scrollbar"
                         rows={1}
                         style={{ minHeight: '52px' }}
                     />
@@ -192,6 +206,6 @@ export default function ChatArea({
                     </p>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
