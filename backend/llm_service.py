@@ -39,7 +39,7 @@ if platform.system() == "Windows":
         print("🔍 Buscando en PATH del sistema...")
         FFMPEG_PATH = shutil.which('ffmpeg') or 'ffmpeg'
     else:
-        print(f"✅ FFmpeg configurado correctamente: {FFMPEG_PATH}")
+        print(f"FFmpeg configurado correctamente: {FFMPEG_PATH}")
 else:
     # Linux/Mac: usar PATH normal
     FFMPEG_PATH = shutil.which('ffmpeg') or 'ffmpeg'
@@ -67,7 +67,8 @@ PROMPTS_POR_RED = {
     {{
       "text": "El texto adaptado para Facebook con estilo académico...",
       "hashtags": ["#UAGRM", "#Universidad"],
-      "character_count": 123
+      "character_count": 123,
+      "suggested_image_prompt": "Un prompt de imagen que describa el contenido académico para Facebook"
     }}
     """,
     "instagram": """
@@ -115,7 +116,7 @@ PROMPTS_POR_RED = {
       "tone": "professional"
     }}
     """,
-"tiktok": """
+    "tiktok": """
     Eres un experto en marketing de redes sociales especializado en TikTok.
     Tu tarea es adaptar COMPLETAMENTE una noticia académica para ser publicada en esta plataforma.
 
@@ -152,12 +153,12 @@ PROMPTS_POR_RED = {
     Input: "La UAGRM habilitará retiro próxima semana"
     Output JSON:
     {{
-  "text": "🚨 ¡ATENCIÓN FICCT! 🚨\\n\\nLa UAGRM acaba de confirmar que el retiro académico estará HABILITADO la próxima semana ⏰\\n\\nSi estás evaluando tu carga académica, este anuncio te interesa 👀📚\\n\\n#UAGRM #FICCT #EstudiantesUAGRM #UniversidadBo #InfoAcadémica #ComunidadUAGRM #Actualización",
- "tts_text": "Atención estudiantes de la Facultad de Ingeniería de Ciencias de la Computación. La próxima semana se habilitarán las inscripciones de materias.",
-  "hashtags": ["#UAGRM", "#FICCT", "#EstudiantesUAGRM", "#UniversidadBo", "#InfoAcadémica", "#ComunidadUAGRM", "#Actualización"],
-  "character_count": 238,
-  "video_hook": "La Universidad Autónoma Gabriel René Moreno confirma el retiro académico para la próxima semana."
-}}
+      "text": "🚨 ¡ATENCIÓN FICCT! 🚨\\n\\nLa UAGRM acaba de confirmar que el retiro académico estará HABILITADO la próxima semana ⏰\\n\\nSi estás evaluando tu carga académica, este anuncio te interesa 👀📚\\n\\n#UAGRM #FICCT #EstudiantesUAGRM #UniversidadBo #InfoAcadémica #ComunidadUAGRM #Actualización",
+      "tts_text": "Atención estudiantes de la Facultad de Ingeniería de Ciencias de la Computación. La próxima semana se habilitarán las inscripciones de materias.",
+      "hashtags": ["#UAGRM", "#FICCT", "#EstudiantesUAGRM", "#UniversidadBo", "#InfoAcadémica", "#ComunidadUAGRM", "#Actualización"],
+      "character_count": 238,
+      "video_hook": "La Universidad Autónoma Gabriel René Moreno confirma el retiro académico para la próxima semana."
+    }}
 
     Debes devolver EXACTAMENTE un JSON válido con esta estructura:
     {{
@@ -197,9 +198,10 @@ PROMPTS_POR_RED = {
       "text": "Hola! 👋\n\nTe cuento que...\n\nSi tienes dudas, escríbenos!",
       "hashtags": [],
       "character_count": 123,
-      "format": "conversational"
+      "format": "conversational",
+      "suggested_image_prompt": "Un prompt de imagen simple y claro para WhatsApp"
     }}
-    
+
     IMPORTANTE: 
     - Usa saltos de línea (\\n) para organizar el mensaje
     - Mantén un tono amigable pero profesional
@@ -470,7 +472,10 @@ def extraer_keywords_con_llm(texto: str) -> list:
     
     REGLAS PARA KEYWORDS (CRÍTICO):
     ✅ Cada keyword debe tener 3-5 palabras en INGLÉS
-    ✅ SIEMPRE incluir "university" o "college" o "campus" en cada keyword
+    ✅ GENERALMENTE incluir "university" o "college" o "campus" para dar contexto
+    ✅ EXCEPCIÓN: Para eventos visuales fuertes (Navidad, Halloween, Fiestas, Deportes), PRIORIZA la acción y las personas sobre el lugar.
+       - BIEN: "group of friends celebrating christmas party"
+       - MAL: "christmas university campus empty"
     ✅ Ser ESPECÍFICO al tema: no genérico
     ✅ Describir lo VISUAL: ¿qué se vería en el video?
     ✅ Usar términos que existan en videos de stock (profesionales, reales)
@@ -489,9 +494,9 @@ def extraer_keywords_con_llm(texto: str) -> list:
     - Medicina → "medical students anatomy class", "university hospital training", "healthcare education campus"
     - Derecho → "law students library books", "university legal education", "campus law school building"
     
-    🎉 EVENTOS:
-    - Navidad/Festividades → "christmas university campus decorations", "holiday college celebration students", "festive campus lights evening"
-    - Graduación → "university graduation ceremony caps", "college commencement celebration", "campus graduation students families"
+    🎉 EVENTOS (PRIORIZAR PERSONAS Y CELEBRACIÓN):
+    - Navidad/Festividades → "group of friends celebrating christmas party", "people wearing santa hats having fun", "happy students holding sparklers holiday"
+    - Graduación → "university graduation ceremony caps", "college commencement celebration", "happy graduates throwing hats"
     - Conferencias → "university conference auditorium speaker", "academic seminar students listening", "campus lecture hall presentation"
     - Ferias → "university career fair booths", "college expo students networking", "campus event tents crowds"
     
@@ -513,7 +518,7 @@ def extraer_keywords_con_llm(texto: str) -> list:
     ❌ NUNCA GENERES:
     - Keywords de 1-2 palabras: "students", "university", "christmas"
     - Keywords abstractas: "education", "learning", "knowledge"
-    - Keywords sin contexto universitario: "people walking", "building exterior"
+    - Keywords sin contexto universitario (SALVO EVENTOS): "people walking", "building exterior"
     - Keywords muy específicas que no existan en stock: "UAGRM building", "FICCT logo"
     
     ✅ SIEMPRE GENERA:
@@ -560,24 +565,31 @@ def extraer_keywords_con_llm(texto: str) -> list:
         # VALIDACIÓN Y ENRIQUECIMIENTO
         keywords_validadas = []
         
+        # Palabras que indican evento fuerte y permiten omitir "university"
+        STRONG_THEMES = ['christmas', 'holiday', 'party', 'celebration', 'halloween', 'festival', 'concert', 'sport', 'game']
+        
         for kw in keywords[:3]:
             palabras = kw.split()
+            kw_lower = kw.lower()
             
             # Validar longitud mínima
             if len(palabras) < 3:
                 print(f"⚠️ Keyword muy corta: '{kw}', enriqueciendo...")
                 # Agregar contexto universitario
-                if "university" not in kw.lower() and "college" not in kw.lower() and "campus" not in kw.lower():
+                if "university" not in kw_lower and "college" not in kw_lower and "campus" not in kw_lower:
                     kw = f"{kw} university campus"
                 else:
                     kw = f"{kw} students"
             
-            # Validar que tenga contexto universitario
-            tiene_contexto = any(word in kw.lower() for word in ['university', 'college', 'campus', 'academic', 'student'])
+            # Validar contexto universitario (CON EXCEPCIONES)
+            tiene_contexto = any(word in kw_lower for word in ['university', 'college', 'campus', 'academic', 'student', 'class', 'school'])
+            es_tema_fuerte = any(theme in kw_lower for theme in STRONG_THEMES)
             
-            if not tiene_contexto:
+            if not tiene_contexto and not es_tema_fuerte:
                 print(f"⚠️ Keyword sin contexto universitario: '{kw}', agregando...")
                 kw = f"{kw} university"
+            elif es_tema_fuerte and not tiene_contexto:
+                 print(f"ℹ️ Keyword de tema fuerte aceptada sin contexto explícito: '{kw}'")
             
             keywords_validadas.append(kw)
         
@@ -630,11 +642,11 @@ def generar_keywords_fallback(texto: str) -> list:
             "college finals week campus"
         ]
     
-    elif any(word in texto_lower for word in ['navidad', 'christmas', 'festivo', 'celebración']):
+    elif any(word in texto_lower for word in ['navidad', 'christmas', 'festivo', 'celebración', 'fiesta']):
         keywords_fallback = [
-             "christmas lights decorations bokeh",  # Luces navideñas (existe)
-             "people wearing santa hats celebration",  # Gorros navideños (existe)
-             "christmas tree decorated living room" 
+             "group of friends celebrating christmas party",  # Gente celebrando
+             "people wearing santa hats having fun",  # Gorros navideños y diversión
+             "happy students holding sparklers holiday" # Estudiantes con luces
         ]
     
     elif any(word in texto_lower for word in ['graduación', 'titulación', 'grado']):
