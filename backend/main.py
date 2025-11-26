@@ -183,9 +183,10 @@ def test_post_facebook(request: schemas.TestPostRequest, current_user: User = De
     Endpoint para publicar en Facebook
     - VALIDACIÓN de contenido académico
     - ADAPTACIÓN automática
-    - SOLO TEXTO (sin imagen)
+    - 🆕 GENERACIÓN DE IMAGEN (igual que Instagram)
     """
     
+    # 1. Validar contenido académico
     print("🔍 Validando contenido académico...")
     validacion = llm_service.validar_contenido_academico(request.text)
     
@@ -194,12 +195,13 @@ def test_post_facebook(request: schemas.TestPostRequest, current_user: User = De
             status_code=400, 
             detail={
                 "error": "contenido_no_academico",
-                "mensaje": "❌ Este contenido no es apropiado para publicación académica. Por favor, ingrese información relacionada con actividades universitarias, fechas académicas, eventos educativos, etc."
+                "mensaje": "❌ Este contenido no es apropiado para publicación académica."
             }
         )
     
     print(f"✅ Contenido validado como académico: {validacion.get('razon')}")
     
+    # 2. Adaptar contenido
     print("🔄 Adaptando contenido para Facebook...")
     adaptacion = llm_service.adaptar_contenido(
         titulo=request.text[:50],
@@ -218,9 +220,17 @@ def test_post_facebook(request: schemas.TestPostRequest, current_user: User = De
     
     print(f"✅ Texto adaptado: {texto_adaptado[:100]}...")
     
+    # 3. 🆕 GENERAR IMAGEN (igual que Instagram)
+    print("🎨 Generando imagen para Facebook...")
+    # prompt_imagen = f"Universidad UAGRM, tema académico: {request.text[:100]}"
+    prompt_imagen = adaptacion.get("suggested_image_prompt", f"Universidad UAGRM, tema académico: {request.text[:100]}")
+    imagen_url = llm_service.generar_imagen_ia(prompt_imagen)
+    print(f"✅ Imagen generada: {imagen_url[:100]}...")
+    
+    # 4. Publicar en Facebook CON IMAGEN
     result = social_services.post_to_facebook(
         text=texto_adaptado,
-        image_url=None  # SIN IMAGEN
+        image_url=imagen_url  # ✅ CON IMAGEN
     )
     
     if "error" in result:
@@ -230,16 +240,20 @@ def test_post_facebook(request: schemas.TestPostRequest, current_user: User = De
     post_id = result.get("id") or result.get("post_id")
     link_facebook = f"https://www.facebook.com/{post_id.replace('_', '/posts/')}" if post_id else None
     
-    # 6. Devolver la validación, adaptación y resultado de la publicación
+    # 6. 🆕 Retornar con imagen_generada
     return {
         "validacion": validacion,
         "adaptacion": adaptacion,
+        "imagen_generada": {  # ✅ AGREGADO
+            "url": imagen_url,
+            "prompt": prompt_imagen
+        },
         "publicacion": {
             "id": post_id,
             "link": link_facebook,
             "raw": result
         },
-        "mensaje": "✅ Contenido académico validado, adaptado y publicado en Facebook (solo texto)"
+        "mensaje": "✅ Contenido académico validado, adaptado, imagen generada y publicado en Facebook"
     }
 
 
@@ -560,19 +574,19 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest, curre
     5. Retorna resumen de publicaciones exitosas/fallidas
     
     Redes soportadas:
-    - facebook (solo texto)
+    - facebook (texto + imagen generada)
     - instagram (texto + imagen generada)
     - linkedin (texto profesional)
     - whatsapp (estado con imagen)
     - tiktok (video generado con IA)
     
     Ejemplo de uso:
-    ```json
+```json
     {
         "text": "La FICCT anuncia retorno a clases presenciales este miércoles",
         "target_networks": ["facebook", "instagram", "tiktok"]
     }
-    ```
+```
     """
     import time
     
@@ -650,10 +664,27 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest, curre
     print("🎨 [PASO 3/5] Generando recursos multimedia...")
     
     recursos = {
+        "imagen_facebook": None,
         "imagen_instagram": None,
         "imagen_whatsapp": None,
         "video_tiktok": None
     }
+    
+    # Imagen para Facebook (si está en la lista)
+    # if "facebook" in redes_validas:
+    #     print("   🎨 Generando imagen para Facebook...")
+    #     prompt_img = f"Universidad UAGRM: {request.text[:100]}"
+        
+        
+    if "facebook" in redes_validas and "facebook" in adaptaciones:
+        print("   🎨 Generando imagen para Facebook...")
+        prompt_img = adaptaciones["facebook"].get(
+           "suggested_image_prompt", 
+           f"Universidad UAGRM: {request.text[:100]}"
+        ) 
+        
+        recursos["imagen_facebook"] = llm_service.generar_imagen_ia(prompt_img)
+        print(f"   ✅ Imagen Facebook generada")
     
     # Imagen para Instagram (si está en la lista)
     if "instagram" in redes_validas and "instagram" in adaptaciones:
@@ -711,12 +742,22 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest, curre
                     texto_adaptado = f"{texto_adaptado}\n\n{hashtags_str}"
             
             # ─────────────────────────────────────────────────────
-            # 🔵 FACEBOOK (solo texto)
+            # 🔵 FACEBOOK (texto + imagen)
             # ─────────────────────────────────────────────────────
             if red == "facebook":
+                if not recursos["imagen_facebook"]:
+                    resultados["facebook"] = {
+                        "estado": "error",
+                        "error": "No se pudo generar imagen",
+                        "adaptacion": adaptacion
+                    }
+                    fallidos += 1
+                    print(f"   ❌ Facebook falló: sin imagen")
+                    continue
+                
                 result = social_services.post_to_facebook(
                     text=texto_adaptado,
-                    image_url=None
+                    image_url=recursos["imagen_facebook"]
                 )
                 
                 if "error" in result:
@@ -735,6 +776,7 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest, curre
                         "estado": "exitoso",
                         "id": post_id,
                         "link": link,
+                        "imagen_url": recursos["imagen_facebook"],
                         "adaptacion": adaptacion
                     }
                     exitosos += 1
@@ -876,17 +918,16 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest, curre
                     fallidos += 1
                     print(f"   ❌ TikTok falló: {result['error']}")
                 else:
-                    # 🔗 RETORNAR TODA LA INFO INCLUYENDO share_url
                     resultados["tiktok"] = {
                         "estado": "exitoso",
                         "publish_id": result.get("publish_id"),
                         "video_id": result.get("video_id"),
-                        "share_url": result.get("share_url"),  # 🔗 ENLACE DEL VIDEO
+                        "share_url": result.get("share_url"),
                         "privacy": result.get("privacy"),
                         "mode": result.get("mode"),
                         "size_mb": result.get("size_mb"),
                         "mensaje": result.get("mensaje"),
-                        "como_ver": result.get("como_ver"),  # 📱 INSTRUCCIONES
+                        "como_ver": result.get("como_ver"),
                         "cuenta": result.get("cuenta", "@limberg818"),
                         "visibilidad": result.get("visibilidad"),
                         "nota": result.get("nota"),
@@ -894,7 +935,6 @@ def publish_to_multiple_networks(request: schemas.MultiNetworkPostRequest, curre
                     }
                     exitosos += 1
                     
-                    # Log del share_url
                     share_url = result.get("share_url")
                     if share_url:
                         print(f"   ✅ TikTok publicado: {share_url}")
