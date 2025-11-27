@@ -1,8 +1,8 @@
-# 1. Base Image: Usar la imagen de Python completa (más estable)
-FROM python:3.13
+# 1. Base Image: CAMBIO CRUCIAL -> Usar Python 3.11 (que sí tiene audioop)
+FROM python:3.11
 
 # 2. Instalar dependencias del sistema (apt-get)
-# Instala ffmpeg, build-essential y las librerías de audio necesarias.
+# Mantenemos las librerías de audio y video que ya sabemos que funcionan
 RUN apt-get update && apt-get install -y \
     build-essential \
     ffmpeg \
@@ -17,8 +17,8 @@ WORKDIR /usr/src/app
 # 4. Copiar código
 COPY backend/ ./backend/
 
-# 5. Instalar dependencias de Python (sin PyAudio, ya lo eliminó)
+# 5. Instalar dependencias de Python
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
-# 6. Comando de inicio (Corregido a la ruta de módulo)
+# 6. Comando de inicio
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "10000"]
