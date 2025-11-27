@@ -530,11 +530,11 @@ def extraer_keywords_con_llm(texto: str) -> list:
     TEXTO A ANALIZAR:
     "{texto}"
     
-    RESPONDE ÚNICAMENTE CON ESTE JSON (sin explicaciones, sin markdown):
+    RESPONDE ÚNICAMENTE CON ESTE JSON (sin markdown, sin comas finales, sin truncar):
     {{
-      "tema_principal": "Breve descripción del tema (ej: 'Inscripciones académicas')",
-      "entidades_clave": ["FICCT", "UAGRM", "etc."],
-      "conceptos_visuales": ["estudiantes inscribiéndose", "oficinas administrativas", "etc."],
+      "tema_principal": "Breve descripción del tema",
+      "entidades_clave": ["FICCT", "UAGRM"],
+      "conceptos_visuales": ["concepto1", "concepto2", "concepto3"],
       "keywords": [
         "keyword específica 1 (3-5 palabras en inglés)",
         "keyword específica 2 (3-5 palabras en inglés)",
@@ -542,6 +542,11 @@ def extraer_keywords_con_llm(texto: str) -> list:
       ],
       "razon": "Por qué elegiste estas keywords"
     }}
+    
+    IMPORTANTE:
+    - NO uses comas después del último elemento de arrays
+    - Cierra TODOS los corchetes y llaves
+    - NO truncues el JSON
     """
     
     try:
@@ -551,6 +556,21 @@ def extraer_keywords_con_llm(texto: str) -> list:
         
         # Limpiar markdown
         response_text = response_text.replace('```json\n', '').replace('```json', '').replace('```\n', '').replace('```', '').strip()
+        
+        # ✅ Limpiar trailing commas (comas finales)
+        import re
+        response_text = re.sub(r',(\s*[}\]])', r'\1', response_text)
+        
+        # ✅ Completar JSON truncado
+        if not response_text.endswith('}'):
+            # Si está cortado en keywords
+            if '"keywords"' in response_text and not ']' in response_text.split('"keywords"')[-1]:
+                response_text += '"],"razon":"JSON completado automáticamente"}'
+            # Si está cortado en razon
+            elif '"razon"' in response_text:
+                response_text += '"}'
+            else:
+                response_text += '}'
         
         resultado = json.loads(response_text)
         
