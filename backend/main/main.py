@@ -7,56 +7,59 @@ import llm_service
 import os
 
 from auth import auth_schemas, auth_service
-from auth.database import get_db, init_db
+from auth.database import get_db, init_db, engine
 from auth.models import User
 from typing import Optional
+from dependencies import get_current_user
 
 app = FastAPI()
+
+# Crear tablas de chat
+from chat import models as chat_models
+chat_models.Base.metadata.create_all(bind=engine)
+
+from chat import routes as chat_routes
+app.include_router(chat_routes.router)
 
 @app.on_event("startup")
 def startup_event():
     init_db()
     print("🚀 Servidor iniciado con autenticación")
 
+# ✅ CORS ACTUALIZADO PARA PRODUCCIÓN
+# Obtener los orígenes permitidos desde variables de entorno
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
+
+# Si no hay ALLOWED_ORIGINS configurado, usar localhost por defecto
+if not ALLOWED_ORIGINS[0]:
+    ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ]
+
+# Agregar el origen de Vercel si está configurado
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+if FRONTEND_URL and FRONTEND_URL not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(FRONTEND_URL)
+
+print(f"🔓 CORS habilitado para: {ALLOWED_ORIGINS}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,  # ✅ Solo orígenes específicos en producción
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-def get_current_user(
-    authorization: Optional[str] = Header(None),
-    db: Session = Depends(get_db)
-) -> User:
-    """
-    Verifica que el usuario esté autenticado mediante el token
-    """
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No autenticado")
-    
-    # Extraer token del header "Bearer TOKEN"
-    try:
-        token = authorization.replace("Bearer ", "")
-    except:
-        raise HTTPException(status_code=401, detail="Token inválido")
-    
-    user = auth_service.verify_token(token, db)
-    
-    if not user:
-        raise HTTPException(status_code=401, detail="Token inválido o expirado")
-    
-    return user
-
-
-# ============================================================================
-# 🆕 ENDPOINTS DE AUTENTICACIÓN
-# ============================================================================
-
 @app.get("/")
 def read_root():
-    return {"message": "API del Sistema Multi-Red Social funcionando"}
+    return {
+        "message": "API del Sistema Multi-Red Social funcionando",
+        "version": "2.0",
+        "status": "online"
+    }
 
 
 @app.post("/api/auth/register", response_model=auth_schemas.LoginResponse)

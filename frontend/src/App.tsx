@@ -4,6 +4,7 @@ import Login from './auth/Login';
 import ChatSidebar from './components/ChatSidebar';
 import ChatArea from './components/ChatArea';
 import { Menu } from 'lucide-react';
+import { API_ENDPOINTS, getAuthHeaders } from './config/api'; // ✅ IMPORTAR
 
 // Tipos
 export interface Conversation {
@@ -61,12 +62,12 @@ function App() {
     }
   }, [currentConversationId, token]);
 
-  // --- API Calls ---
+  // --- API Calls (✅ ACTUALIZADAS) ---
 
   const fetchConversations = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/chat/conversations', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const res = await fetch(API_ENDPOINTS.CONVERSATIONS, {
+        headers: getAuthHeaders(token)
       });
       if (res.ok) {
         const data = await res.json();
@@ -79,8 +80,8 @@ function App() {
 
   const fetchMessages = async (convId: number) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/chat/conversations/${convId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const res = await fetch(API_ENDPOINTS.CONVERSATION_DETAIL(convId), {
+        headers: getAuthHeaders(token)
       });
       if (res.ok) {
         const data = await res.json();
@@ -93,12 +94,9 @@ function App() {
 
   const createConversation = async (title?: string) => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/chat/conversations', {
+      const res = await fetch(API_ENDPOINTS.CONVERSATIONS, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: getAuthHeaders(token),
         body: JSON.stringify({ title })
       });
       if (res.ok) {
@@ -115,9 +113,9 @@ function App() {
   const deleteConversation = async (id: number) => {
     if (!confirm("¿Estás seguro de eliminar este chat?")) return;
     try {
-      await fetch(`http://127.0.0.1:8000/api/chat/conversations/${id}`, {
+      await fetch(API_ENDPOINTS.DELETE_CONVERSATION(id), {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeaders(token)
       });
       setConversations(conversations.filter(c => c.id !== id));
       if (currentConversationId === id) {
@@ -131,40 +129,30 @@ function App() {
   const sendMessage = async (content: string) => {
     let convId = currentConversationId;
 
-    // Si no hay conversación seleccionada, crear una nueva
     if (!convId) {
       convId = await createConversation(content.substring(0, 30));
       if (convId) setCurrentConversationId(convId);
       else return;
     }
 
-    // Optimistic update
     const userMsg: Message = { role: 'user', content };
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
     try {
-      // 1. Enviar mensaje del usuario con redes seleccionadas
-      const res = await fetch(`http://127.0.0.1:8000/api/chat/conversations/${convId}/messages`, {
+      const res = await fetch(API_ENDPOINTS.CONVERSATION_MESSAGES(convId), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: getAuthHeaders(token),
         body: JSON.stringify({
           role: 'user',
           content,
-          selected_networks: selectedNetworks // Enviar redes seleccionadas
+          selected_networks: selectedNetworks
         })
       });
 
       if (res.ok) {
-        // 2. El backend ahora genera la respuesta automáticamente.
-        // Esperamos un momento y recargamos los mensajes para ver la respuesta del asistente.
-
-        // Polling simple: intentar 3 veces cada 2 segundos
         let attempts = 0;
-        const maxAttempts = 15; // 30 segundos max
+        const maxAttempts = 15;
 
         const pollMessages = async () => {
           if (attempts >= maxAttempts) {
@@ -173,23 +161,19 @@ function App() {
           }
 
           try {
-            const msgsRes = await fetch(`http://127.0.0.1:8000/api/chat/conversations/${convId}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
+            const msgsRes = await fetch(API_ENDPOINTS.CONVERSATION_DETAIL(convId!), {
+              headers: getAuthHeaders(token)
             });
 
             if (msgsRes.ok) {
               const data = await msgsRes.json();
               const newMessages = data.messages || [];
-
-              // Si hay más mensajes que antes, es que llegó la respuesta
-              // Nota: comparamos con messages.length + 1 porque acabamos de añadir uno localmente
-              // pero messages del state no se actualiza dentro del closure, así que mejor comparamos con el último mensaje
               const lastMsg = newMessages[newMessages.length - 1];
 
               if (lastMsg && lastMsg.role === 'assistant') {
                 setMessages(newMessages);
                 setIsLoading(false);
-                fetchConversations(); // Actualizar lista lateral
+                fetchConversations();
               } else {
                 attempts++;
                 setTimeout(pollMessages, 2000);
@@ -239,7 +223,6 @@ function App() {
 
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 overflow-hidden font-sans">
-      {/* Mobile Sidebar Toggle */}
       <button
         className="md:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-md shadow-md text-white"
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -247,7 +230,6 @@ function App() {
         <Menu size={24} />
       </button>
 
-      {/* Sidebar */}
       <div className={`
         fixed md:relative z-40 h-full transition-transform duration-300 ease-in-out
         ${isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden"}
@@ -270,7 +252,6 @@ function App() {
         />
       </div>
 
-      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-full relative w-full bg-gray-900">
         <ChatArea
           messages={messages}

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Bot, Lock, Mail, User, ArrowRight, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { API_ENDPOINTS } from '../config/api'; // ✅ IMPORTAR
 
 interface LoginProps {
   onLoginSuccess: (token: string, user: any) => void;
 }
 
 function Login({ onLoginSuccess }: LoginProps) {
-  const [isLogin, setIsLogin] = useState(true); // true = Login, false = Register
+  const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,9 +21,8 @@ function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
 
     try {
-      const endpoint = isLogin
-        ? 'http://127.0.0.1:8000/api/auth/login'
-        : 'http://127.0.0.1:8000/api/auth/register';
+      // ✅ USAR ENDPOINTS DE LA CONFIG
+      const endpoint = isLogin ? API_ENDPOINTS.LOGIN : API_ENDPOINTS.REGISTER;
 
       const body = isLogin
         ? { username, password }
@@ -43,11 +43,8 @@ function Login({ onLoginSuccess }: LoginProps) {
       }
 
       if (data.success && data.token) {
-        // Guardar token en localStorage
         localStorage.setItem('token', data.token.access_token);
         localStorage.setItem('user', JSON.stringify(data.token.user));
-
-        // Notificar al componente padre
         onLoginSuccess(data.token.access_token, data.token.user);
       }
 
@@ -61,7 +58,6 @@ function Login({ onLoginSuccess }: LoginProps) {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4 font-sans text-gray-100">
       <div className="w-full max-w-md">
-        {/* Logo / Header */}
         <div className="text-center mb-10">
           <div className="w-16 h-16 bg-green-600 rounded-2xl mx-auto flex items-center justify-center mb-6 shadow-lg shadow-green-900/20">
             <Bot size={40} className="text-white" />
@@ -76,11 +72,8 @@ function Login({ onLoginSuccess }: LoginProps) {
           </p>
         </div>
 
-        {/* Card */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-xl">
           <form onSubmit={handleSubmit} className="space-y-5">
-
-            {/* Username */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300 ml-1">Username</label>
               <div className="relative group">
@@ -99,7 +92,6 @@ function Login({ onLoginSuccess }: LoginProps) {
               </div>
             </div>
 
-            {/* Email (Register only) */}
             {!isLogin && (
               <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                 <label className="text-sm font-medium text-gray-300 ml-1">Email address</label>
@@ -120,7 +112,6 @@ function Login({ onLoginSuccess }: LoginProps) {
               </div>
             )}
 
-            {/* Password */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300 ml-1">Password</label>
               <div className="relative group">
@@ -139,7 +130,6 @@ function Login({ onLoginSuccess }: LoginProps) {
               </div>
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -147,7 +137,6 @@ function Login({ onLoginSuccess }: LoginProps) {
               </div>
             )}
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -167,7 +156,6 @@ function Login({ onLoginSuccess }: LoginProps) {
             </button>
           </form>
 
-          {/* Footer Toggle */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-400">
               {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
@@ -184,7 +172,6 @@ function Login({ onLoginSuccess }: LoginProps) {
           </div>
         </div>
 
-        {/* Footer Info */}
         <div className="mt-8 text-center text-xs text-gray-600">
           <p>© 2024 UAGRM Social Media System. All rights reserved.</p>
         </div>
