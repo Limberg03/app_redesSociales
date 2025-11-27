@@ -121,20 +121,18 @@ class TestFacebookIntegration:
     
     def test_post_to_facebook_sin_texto(self, mocker):
         """
-        Prueba que post_to_facebook maneje el caso de texto vacío.
+        Prueba que post_to_facebook RECHACE texto vacío.
         """
-        mock_response = Mock()
-        mock_response.json.return_value = {"id": "123_456"}
-        mock_response.raise_for_status = Mock()
-        
-        mock_post = mocker.patch("social_services.httpx.post", return_value=mock_response)
-        
-        # Ejecutar con texto vacío
+        mock_post = mocker.patch("social_services.httpx.post")
+
         resultado = social_services.post_to_facebook(text="", image_url=None)
-        
-        # Debe llamar a la API incluso con texto vacío
-        assert mock_post.called
-        # aqui  debo retornar algo mas. 
+
+        # ✅ NO debe llamar a la API
+        assert not mock_post.called
+
+        # ✅ Debe retornar error
+        assert "error" in resultado
+        assert "texto" in resultado["error"].lower() or "vacío" in resultado["error"].lower()
     
     
     def test_post_to_facebook_verifica_variables_entorno(self, mocker):
