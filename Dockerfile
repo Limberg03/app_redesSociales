@@ -6,6 +6,8 @@ FROM python:3.13-slim
 RUN apt-get update && apt-get install -y \
     portaudio19-dev \
     build-essential \
+    libasound-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # 3. Configuración del contenedor
