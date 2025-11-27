@@ -1,13 +1,10 @@
-# 1. Base Image: Usar la imagen base de Python completa (más robusta)
-FROM python:3.13 
+# 1. Base Image: Usar la imagen de Python completa (más estable)
+FROM python:3.13
 
 # 2. Instalar dependencias del sistema (apt-get)
-# Instalamos todas las librerías necesarias para PyAudio, ffmpeg, y compilación.
+# Solo necesitamos ffmpeg y las herramientas básicas de compilación.
 RUN apt-get update && apt-get install -y \
-    portaudio19-dev \
     build-essential \
-    libasound-dev \
-    libffi-dev \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
@@ -18,8 +15,7 @@ WORKDIR /usr/src/app
 # Copia la carpeta 'backend' completa al contenedor
 COPY backend/ ./backend/
 
-# 5. Instalar dependencias de Python
-# La compilación de PyAudio ahora debería encontrar los archivos.
+# 5. Instalar dependencias de Python (sin PyAudio)
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # 6. Comando de inicio
