@@ -261,7 +261,7 @@ def validar_contenido_academico(texto: str) -> dict:
     {{
       "es_academico": true o false,
       "razon": "Breve explicación de por qué es o no académico"
-    }}
+    }}7
     
     NO incluyas texto adicional, SOLO el JSON.
     """

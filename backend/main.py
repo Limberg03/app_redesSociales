@@ -28,15 +28,19 @@ def startup_event():
 
 # ✅ CORS ACTUALIZADO PARA PRODUCCIÓN
 # Obtener los orígenes permitidos desde variables de entorno
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
+env_origins = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
 
-# Si no hay ALLOWED_ORIGINS configurado, usar localhost por defecto
-if not ALLOWED_ORIGINS[0]:
-    ALLOWED_ORIGINS = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-    ]
+# Siempre agregar rutas de desarrollo local por defecto para evitar problemas CORS
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
+
+for origin in default_origins:
+    if origin not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(origin)
 
 # Agregar el origen de Vercel si está configurado
 FRONTEND_URL = os.getenv("FRONTEND_URL")
@@ -49,7 +53,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,  # ✅ Solo orígenes específicos en producción
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
 

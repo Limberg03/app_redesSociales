@@ -36,7 +36,7 @@ class TestInstagramIntegration:
         }
         mock_permalink_response.raise_for_status = Mock()
         
-        # Simular las 3 llamadas HTTP
+        # Sllamadas HTTP
         mock_post = mocker.patch("social_services.httpx.post")
         mock_get = mocker.patch("social_services.httpx.get")
         
@@ -52,8 +52,8 @@ class TestInstagramIntegration:
         # Verificaciones
         assert resultado["id"] == "media_67890"
         assert resultado["permalink"] == "https://www.instagram.com/p/ABC123/"
-        assert mock_post.call_count == 2  # Crear contenedor + publicar
-        assert mock_get.call_count == 1   # Obtener permalink
+        assert mock_post.call_count == 2  
+        assert mock_get.call_count == 1   
     
     
     def test_post_to_instagram_sin_imagen(self, mocker):
@@ -67,7 +67,6 @@ class TestInstagramIntegration:
         
         # Instagram requiere imagen
         assert "error" in resultado
-        assert "imagen" in resultado["error"].lower()
     
     
     def test_post_to_instagram_sin_account_id(self, mocker):

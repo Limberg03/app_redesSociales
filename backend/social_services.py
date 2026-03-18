@@ -23,6 +23,13 @@ def post_to_facebook(text: str, image_url: str = None):
     - Si image_url es None: publica solo texto
     """
     
+    if not text or text.strip() == "":
+        logging.warning("⚠️ Intento de publicar en Facebook sin texto")
+        return {
+            "error": "El texto no puede estar vacío",
+            "status": "rejected"
+        }
+    
     if image_url:
         post_url = f"{META_GRAPH_URL}/{PAGE_ID}/photos"
         payload = {
@@ -52,7 +59,8 @@ def post_to_facebook(text: str, image_url: str = None):
     except Exception as e:
         logging.error(f"❌ Error inesperado en Facebook: {e}")
         return {"error": f"Error inesperado: {str(e)}"}
-
+ 
+ 
 
 def post_to_instagram(text: str, image_url: str):
     """
